@@ -17,7 +17,6 @@ import matplotlib.pyplot as plt
 from geopideeponet.deeponet import BranchNetwork, TrunkNetwork, DeepONet
 from geopideeponet.geometry import unit_square
 
-
 # Initialize random seeds
 np.random.seed(42)
 torch.manual_seed(42)
@@ -32,29 +31,33 @@ xy = unit_square(n)
 
 # Transformation
 def phi(x):
-    return 2 * x
+    return 4 * x
+    # for i, x in enumerate(xs):
+    #     r, theta = 0.5 * x[0] + 0.5, x[1] * np.pi / 2
+    #     ys[i][0] = r * torch.cos(theta)
+    #     ys[i][1] = r * torch.sin(theta)
+    # return ys
 
 
-# Boundary condition (on reference domain)
+# Boundary condition (on reference domain!)
 def bc(x):
     left, right = x[0] < 1e-6, x[0] > 1 - 1e-6
     top, bottom = x[1] > 1 - 1e-6, x[1] < 1e-6
-    on_boundary = left or right or top or bottom
+    on_boundary = left or right  # or top or bottom
     dirichlet_value = 0
     return on_boundary, dirichlet_value
 
 
 # Define PDE
-def pde(u, points, phi):
+def pde(u, points, phi_points):
     loss = 0
-
     kw = lambda w: {"grad_outputs": torch.ones_like(w), "create_graph": True}
-    phi_jac = torch.autograd.grad(phi(points), points, **kw(points))[0]
-    du = phi_jac.T @ torch.autograd.grad(u, points, **kw(u))[0]
-    u_xx = torch.autograd.grad(du[:, 0], points, **kw(du[:, 0]))[0][:, 0] # TODO: phi_jac?
-    u_yy = torch.autograd.grad(du[:, 1], points, **kw(du[:, 1]))[0][:, 1] # TODO: phi_jac?
+    du = torch.autograd.grad(u, phi_points, **kw(u))[0]
+    u_xx = torch.autograd.grad(du[:, 0], phi_points, **kw(du[:, 0]))[0][:, 0]
+    u_yy = torch.autograd.grad(du[:, 1], phi_points, **kw(du[:, 1]))[0][:, 1]
     q = torch.ones_like(u_xx)
-    loss += (- u_xx - u_yy - q).norm()**2
+    laplace_u = u_xx + u_yy
+    loss += (- laplace_u - q).norm()**2
 
     for i, x in enumerate(points):
         on_boundary, dirichlet_value = bc(x)
@@ -66,7 +69,7 @@ def pde(u, points, phi):
 
 # Setup DeepONet
 collocation_points = n**2
-trunk_width = 256
+trunk_width = 128
 branch = BranchNetwork(
     input_size=collocation_points * d,
     layer_width=128,
@@ -82,12 +85,13 @@ model = DeepONet(branch, trunk)
 # Train model
 loss_points = unit_square(n=10)
 optimizer = torch.optim.LBFGS(model.parameters())
-for i in range(100):
+for i in range(101):
 
     def closure():
         optimizer.zero_grad()
-        outputs = model((phi(xy), loss_points))
-        pde_loss = pde(outputs, loss_points, phi)
+        phi_points = phi(loss_points)
+        outputs = model((phi(xy), phi_points))
+        pde_loss = pde(outputs, loss_points, phi_points)
         pde_loss.backward()
         return pde_loss
 
@@ -103,15 +107,15 @@ print("")
 
 # Evaluate operator
 xs = unit_square(100)
+u = model((phi(xy), phi(xs)))
 phix = phi(xs)
-y = model((phi(xy), xs))
 
 # Detach tensors
 phix = phix.detach().numpy()
-y = y.detach().numpy()
+u = u.detach().numpy()
 
 # Scatter plot
-plt.scatter(phix[:, 0], phix[:, 1], c=y, s=10)
+plt.scatter(phix[:, 0], phix[:, 1], c=u, s=10)
 plt.axis("equal")
 plt.colorbar()
 plt.show()
