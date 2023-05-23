@@ -25,18 +25,18 @@ random.seed(42)
 
 # Domain is unit square deformed
 d = 2
-n = 3
+n = 5
 xy = unit_square(n)
 
 
 # Transformation
-def phi(x):
-    return 4 * x
-    # for i, x in enumerate(xs):
-    #     r, theta = 0.5 * x[0] + 0.5, x[1] * np.pi / 2
-    #     ys[i][0] = r * torch.cos(theta)
-    #     ys[i][1] = r * torch.sin(theta)
-    # return ys
+def phi(xs):
+    ys = torch.zeros_like(xs)
+    for i, x in enumerate(xs):
+        r, theta = 0.5 + 0.5 * x[0], x[1] * np.pi / 4
+        ys[i][0] = r * torch.cos(theta)
+        ys[i][1] = r * torch.sin(theta)
+    return ys
 
 
 # Boundary condition (on reference domain!)
@@ -69,10 +69,10 @@ def pde(u, points, phi_points):
 
 # Setup DeepONet
 collocation_points = n**2
-trunk_width = 128
+trunk_width = 32
 branch = BranchNetwork(
     input_size=collocation_points * d,
-    layer_width=128,
+    layer_width=16,
     output_size=trunk_width,
 )
 trunk = TrunkNetwork(
@@ -85,7 +85,7 @@ model = DeepONet(branch, trunk)
 # Train model
 loss_points = unit_square(n=10)
 optimizer = torch.optim.LBFGS(model.parameters())
-for i in range(101):
+for i in range(100):
 
     def closure():
         optimizer.zero_grad()
@@ -100,7 +100,7 @@ for i in range(101):
     loss = closure()
     print(f"\rStep {i+1}: loss = {loss:.4g}", end="")
 
-    if loss < 1e-5:
+    if loss < 1e-6:
         break
 
 print("")
