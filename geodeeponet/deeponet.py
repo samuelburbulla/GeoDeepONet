@@ -47,13 +47,19 @@ class TrunkNetwork(torch.nn.Module):
         return y
 
 
-# DeepONet
-class DeepONet(torch.nn.Module):
-    def __init__(self, branch, trunk):
-        super(DeepONet, self).__init__()
-        assert branch.output_size == trunk.output_size
-        self.branch = branch
-        self.trunk = trunk
+# GeoDeepONet
+class GeoDeepONet(torch.nn.Module):
+    def __init__(self, branch_width, trunk_width, num_collocation_points, d):
+        super(GeoDeepONet, self).__init__()
+        self.branch = BranchNetwork(
+            input_size=num_collocation_points * d,
+            layer_width=branch_width,
+            output_size=trunk_width,
+        )
+        self.trunk = TrunkNetwork(
+            input_size=d,
+            output_size=trunk_width,
+        )
 
     def forward(self, x):
         param, point = x
