@@ -8,8 +8,20 @@ class Poisson:
         self.bc = bc
         self.source = source if callable(source) else lambda x: source
 
-    def __call__(self, u, points, phi_points):
-        inner_loss = 0
+
+    # Setup boundary condition
+    def setup_bc(self, points):
+        self.dirichlet_indices = []
+        self.dirichlet_values = []
+        for i, x in enumerate(points):
+            if self.bc.is_dirichlet(x):
+                self.dirichlet_indices += [i]
+                self.dirichlet_values += [self.bc.value(x)]
+        self.dirichlet_values = torch.tensor(self.dirichlet_values)
+
+
+    # Compute loss
+    def __call__(self, u, phi_points):
 
         def kw(w):
             return {
@@ -24,16 +36,12 @@ class Poisson:
         laplace_u = u_xx + u_yy
 
         # Evaluate source term
-        q = torch.tensor(self.source(points))
+        q = torch.tensor(self.source(phi_points))
 
         # Compute inner loss
-        inner_loss += (- laplace_u - q).norm()**2
+        inner_loss = ((- laplace_u - q)**2).sum()
 
         # Compute boundary loss
-        boundary_loss = 0
-        for i, x in enumerate(points):
-            if self.bc.is_dirichlet(x):
-                u_d = self.bc.value(x)
-                boundary_loss += (u[:, i][0] - u_d)**2
+        boundary_loss = ((u[:, self.dirichlet_indices][0] - self.dirichlet_values)**2).sum()
 
         return inner_loss, boundary_loss

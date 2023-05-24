@@ -1,5 +1,10 @@
 import torch
+import random
+import numpy as np
 
+random.seed(42)
+np.random.seed(42)
+torch.manual_seed(42)
 
 # Branch network
 class BranchNetwork(torch.nn.Module):

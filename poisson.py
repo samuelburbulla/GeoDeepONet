@@ -15,14 +15,13 @@ import geodeeponet as gdn
 
 # Hyperparameters
 num_collocation_points = 4
-trunk_width = 16
-branch_width = 16
-num_integration_points = 50**2
-num_test_points = 100**2
+branch_width = 1
+trunk_width = 64
+num_loss_points = 10**2
 
 # Domain
 geom = gdn.geometry.UnitSquare()
-collocation_points = geom.uniform_points(num_points=num_collocation_points)
+collocation_points = geom.uniform_points(num_collocation_points)
 
 # Transformation
 phi = gdn.transformation.PolarCoordinates(
@@ -44,11 +43,11 @@ model = gdn.deeponet.GeoDeepONet(
     d=geom.dimension
 )
 
+# Setup loss points and bc
+loss_points = geom.uniform_points(num_loss_points)
+pde.setup_bc(loss_points)
+
 # Train model
 gdn.train.train_model(
-    geom, model, collocation_points, phi, pde,
-    num_integration_points, num_test_points,
+    geom, model, collocation_points, phi, pde, loss_points
 )
-
-# Plot solution
-gdn.plot.plot_solution(geom, model, collocation_points, phi)
