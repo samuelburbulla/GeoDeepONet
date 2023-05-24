@@ -39,9 +39,9 @@ class Poisson:
         q = torch.tensor(self.source(phi_points))
 
         # Compute inner loss
-        inner_loss = ((- laplace_u - q)**2).sum()
+        inner_loss = ((- laplace_u - q)**2).mean()
 
         # Compute boundary loss
-        boundary_loss = ((u[:, self.dirichlet_indices][0] - self.dirichlet_values)**2).sum()
+        boundary_loss = ((u[:, self.dirichlet_indices][0] - self.dirichlet_values)**2).mean()
 
         return inner_loss, boundary_loss

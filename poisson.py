@@ -16,8 +16,8 @@ import geodeeponet as gdn
 # Hyperparameters
 num_collocation_points = 4
 branch_width = 1
-trunk_width = 64
-num_loss_points = 10**2
+trunk_width = 128
+num_loss_points = 100**2
 
 # Domain
 geom = gdn.geometry.UnitSquare()
