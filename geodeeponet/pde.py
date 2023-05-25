@@ -1,28 +1,91 @@
+import abc
 import torch
 from torch.autograd import grad
 
 
-# Poisson's equation (2D) with Dirichlet boundary conditions
-class Poisson:
+class PDE(abc.ABC):
+    """Abstract base class for partial differential equations."""
+
+    @abc.abstractmethod
+    def setup_bc(self, points):
+        """Sets up the boundary condition.
+
+        Args:
+            points (torch.Tensor): The points in the domain.
+
+        """
+
+    @abc.abstractmethod
+    def __call__(self, u, phi_points):
+        """Computes the loss.
+
+        Args:
+            u (torch.Tensor): The solution tensor.
+            phi_points (torch.Tensor): The points in the domain.
+
+        Returns:
+            torch.Tensor: The loss tensor.
+
+        """
+
+
+class Poisson(PDE):
+    """A class representing Poisson's equation (2D) with Dirichlet boundary conditions.
+    
+    \begin{align}
+      -\Delta u &= q, \quad \text{in } \Omega_\phi, \\
+      u &= uD, \quad \text{on } \partial \Omega_\phi,
+    \end{align}
+    where domain $\Omega_\phi = \phi(\Omega)$ is parameterised by $\phi: \Omega \to \mathbb{R}^d$.
+
+    Attributes:
+        bc: The boundary conditions.
+        source (float or callable): The source term.
+
+    Methods:
+        setup_bc(points):
+            Sets up the boundary condition.
+        __call__(u, phi_points):
+            Computes the loss.
+
+    """
+
     def __init__(self, bc, source=0):
+        """Initializes the Poisson class.
+
+        Args:
+            bc: The boundary conditions.
+            source (float or callable, optional): The source term. Defaults to 0.
+
+        """
         self.bc = bc
         self.source = source if callable(source) else lambda x: source
 
-
-    # Setup boundary condition
     def setup_bc(self, points):
+        """Sets up the boundary condition.
+
+        Args:
+            points (torch.Tensor): The points sampling the domain.
+
+        """
         self.dirichlet_indices = []
-        self.dirichlet_values = []
+        self.dirichlet_values = torch.tensor([])
         for i, x in enumerate(points):
             if self.bc.is_dirichlet(x):
                 self.dirichlet_indices += [i]
-                self.dirichlet_values += [self.bc.value(x)]
-        self.dirichlet_values = torch.tensor([self.dirichlet_values])
+                self.dirichlet_values = torch.cat((self.dirichlet_values, torch.tensor([self.bc.value(x)])))
 
-
-    # Compute loss
     def __call__(self, u, phi_points):
+        """Computes the loss.
 
+        Args:
+            u (torch.Tensor): The solution tensor.
+            phi_points (torch.Tensor): The points in the (global) domain.
+
+        Returns:
+            torch.Tensor: The loss tensor.
+
+        """
         def kw(w):
             return {
                 "grad_outputs": torch.ones_like(w),

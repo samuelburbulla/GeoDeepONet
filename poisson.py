@@ -1,15 +1,4 @@
-# # Physics-informed GeoDeepONet
-#
-# Consider the Poisson problem
-#
-# \begin{align}
-# -\Delta u &= 1, \quad \text{in } \Omega_\phi, \\
-# u &= 0, \quad \text{on } \partial \Omega_\phi,
-# \end{align}
-#
-# where domain $\Omega_\phi = \phi(\Omega)$ is parameterised by
-# $\phi: \Omega \to \mathbb{R}^d$.
-
+"""Physics-informed GeoDeepONet for the Poisson problem (2D)."""
 import torch
 import numpy as np
 import geodeeponet as gdn
@@ -42,7 +31,7 @@ model = gdn.deeponet.GeoDeepONet(
     branch_width=branch_width,
     trunk_width=trunk_width,
     num_collocation_points=len(collocation_points),
-    d=geom.dimension
+    dimension=geom.dimension
 )
 
 # Setup loss points and bc
@@ -54,12 +43,12 @@ gdn.train.train_model(
     geom, model, collocation_points, phis, pde, loss_points
 )
 
-# Plot solution for identity transformation
-phi = gdn.transformation.Identity()
+# Plot solution for a sample transformation
+phi = gdn.transformation.Affine(dim=geom.dimension)
 phi_loss_points = torch.stack([phi(loss_points)])
 phi_collocation_points = phi(collocation_points)
 outputs = model((phi_collocation_points, phi_loss_points))
 loss, bc = pde(outputs, phi_loss_points)
-print(f"Identity transformation   Loss: {loss:.3e}  BC: {bc:.3e}")
+print(f"Sample transformation   Loss: {loss:.3e}  BC: {bc:.3e}")
 
 gdn.plot.plot_solution(geom, model, collocation_points, phi)

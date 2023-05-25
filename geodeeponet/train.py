@@ -1,13 +1,26 @@
 import torch
 import time
 import numpy as np
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 from geodeeponet.plot import plot_solution
 
 
-# Train physics-informed GeoDeepONet
 def train_model(geom, model, collocation_points, phis, pde, loss_points,
                 tolerance=1e-5, steps=1000, print_every=1):
+    """Trains a physics-informed GeoDeepONet model.
+
+    Args:
+        geom (Geometry): The geometry of the domain.
+        model (GeoDeepONet): The GeoDeepONet model.
+        collocation_points (torch.Tensor): The collocation points.
+        phis (list of nn.Module): The transformation function.
+        pde (PDE): The partial differential equation.
+        loss_points (torch.Tensor): The points to evaluate the loss at.
+        tolerance (float, optional): The tolerance for the LBFGS optimizer. Defaults to 1e-5.
+        steps (int, optional): The number of optimization steps. Defaults to 1000.
+        print_every (int, optional): The frequency of printing the loss. Defaults to 1.
+
+    """
     start_time = time.time()
     writer = SummaryWriter()
 
@@ -55,10 +68,7 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
 
             # Print to console
             steps_per_sec = step / (time.time() - start_time)
-            print(
-                f"\rStep {step}  Loss: {train_loss:.3e}  BC: {train_boundary:.3e}"
-                f" ({steps_per_sec:.2f} steps/sec)", end=""
-            )
+            print(f"\rStep {step}  Loss: {train_loss:.3e}  BC: {train_boundary:.3e} ({steps_per_sec:.2f} steps/sec)", end="")
 
             if train_loss < tolerance and train_boundary < tolerance:
                 break
