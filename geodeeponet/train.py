@@ -1,11 +1,12 @@
 import torch
 import time
-from torch.utils.tensorboard.writer import SummaryWriter
+import numpy as np
+from torch.utils.tensorboard import SummaryWriter
 from geodeeponet.plot import plot_solution
 
 
 # Train physics-informed GeoDeepONet
-def train_model(geom, model, collocation_points, phi, pde, loss_points,
+def train_model(geom, model, collocation_points, phis, pde, loss_points,
                 tolerance=1e-5, steps=1000, print_every=1):
     start_time = time.time()
     writer = SummaryWriter()
@@ -19,11 +20,17 @@ def train_model(geom, model, collocation_points, phi, pde, loss_points,
     )
 
     # Helper function to compute losses
-    phi_loss_points = phi(loss_points)
-    phi_collocation_points = phi(collocation_points)
+    phi_loss_points, phi_collocation_points = [], []
+    for phi in phis:
+        phi_loss_points += [phi(loss_points)]
+        phi_collocation_points += [phi(collocation_points)]
+    phi_loss_points = torch.stack(phi_loss_points)
+    phi_collocation_points = torch.stack(phi_collocation_points)
+
     def compute_losses():
         outputs = model((phi_collocation_points, phi_loss_points))
-        return pde(outputs, phi_loss_points)
+        loss, bc = pde(outputs, phi_loss_points)
+        return loss.mean(), bc.mean() 
 
     # Define closure
     def closure():
@@ -56,8 +63,9 @@ def train_model(geom, model, collocation_points, phi, pde, loss_points,
             if train_loss < tolerance and train_boundary < tolerance:
                 break
 
-    # Plot solution on tensorboard
-    plot_solution(writer, geom, model, collocation_points, phi)
+    # Plot solutions on tensorboard
+    for i, phi in enumerate(phis):
+        plot_solution(geom, model, collocation_points, phi, writer=writer, step=i)
 
     writer.close()
     print("")

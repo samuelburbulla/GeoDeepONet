@@ -17,7 +17,7 @@ class Poisson:
             if self.bc.is_dirichlet(x):
                 self.dirichlet_indices += [i]
                 self.dirichlet_values += [self.bc.value(x)]
-        self.dirichlet_values = torch.tensor(self.dirichlet_values)
+        self.dirichlet_values = torch.tensor([self.dirichlet_values])
 
 
     # Compute loss
@@ -31,8 +31,8 @@ class Poisson:
 
         # Compute derivatives
         du = grad(u, phi_points, **kw(u))[0]
-        u_xx = grad(du[:, 0], phi_points, **kw(du[:, 0]))[0][:, 0]
-        u_yy = grad(du[:, 1], phi_points, **kw(du[:, 1]))[0][:, 1]
+        u_xx = grad(du[:, :, 0], phi_points, **kw(du[:, :, 0]))[0][:, :, 0]
+        u_yy = grad(du[:, :, 1], phi_points, **kw(du[:, :, 1]))[0][:, :, 1]
         laplace_u = u_xx + u_yy
 
         # Evaluate source term
@@ -42,6 +42,8 @@ class Poisson:
         inner_loss = ((- laplace_u - q)**2).mean()
 
         # Compute boundary loss
-        boundary_loss = ((u[:, self.dirichlet_indices][0] - self.dirichlet_values)**2).mean()
+        u_boundary = u[:, :, self.dirichlet_indices]
+        u_dirichlet = self.dirichlet_values.repeat(u.shape[0], 1, 1)
+        boundary_loss = ((u_boundary - u_dirichlet)**2).mean()
 
         return inner_loss, boundary_loss

@@ -69,12 +69,20 @@ class GeoDeepONet(torch.nn.Module):
     def forward(self, x):
         param, point = x
 
-        # Reshape params
-        param = param.reshape(1, self.branch.input_size)
+        # Convert param and point to batches, if necessary
+        if len(param.shape) == 2:
+            param = torch.stack([param])
+        if len(point.shape) == 2:
+            point = torch.stack([point])
+
+        # Change view of params
+        param = param.view(param.shape[0], 1, param.shape[1] * param.shape[2])
 
         # Apply branch and trunk
         b = self.branch(param)
         t = self.trunk(point)
 
         # Batch-wise dot product
-        return torch.einsum("bi,ni->bn", b, t)
+        d = torch.einsum("bki,bni->bkn", b, t)
+
+        return d
