@@ -22,8 +22,8 @@ def plot_solution(geom, model, collocation_points, phi, num_points=10000, writer
     
     # Evaluate operator
     xs = geom.uniform_points(num_points=num_points)
-    u = model((phi(collocation_points), phi(xs)))
-    phix = phi(xs)
+    u = model((phi.inv(collocation_points), xs))
+    phix = phi.inv(xs)
 
     # Detach tensors
     phix = phix.detach().numpy()

@@ -33,16 +33,16 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
     )
 
     # Helper function to compute losses
-    phi_loss_points, phi_collocation_points = [], []
+    global_collocation_points = []
     for phi in phis:
-        phi_loss_points += [phi(loss_points)]
-        phi_collocation_points += [phi(collocation_points)]
-    phi_loss_points = torch.stack(phi_loss_points)
-    phi_collocation_points = torch.stack(phi_collocation_points)
+        global_collocation_points += [phi.inv(collocation_points)]
+    global_collocation_points = torch.stack(global_collocation_points)
+
+    loss_points = torch.stack([loss_points])
 
     def compute_losses():
-        outputs = model((phi_collocation_points, phi_loss_points))
-        loss, bc = pde(outputs, phi_loss_points)
+        outputs = model((global_collocation_points, loss_points))
+        loss, bc = pde(outputs, loss_points)
         return loss.mean(), bc.mean() 
 
     # Define closure

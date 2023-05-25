@@ -25,17 +25,20 @@ class Identity:
     
 
 class Affine:
-    """An affine transformation that applies a linear transformation and a translation.
+    """An affine transformation that maps global to local coordinates.
 
     Attributes:
         A (torch.Tensor): The linear transformation matrix.
+        Ainv (torch.Tensor): The inverse of the linear transformation matrix.
         b (torch.Tensor): The translation vector.
 
     Methods:
         __init__(A=None, b=None, dim=None):
             Initializes the Affine class.
+        inv(xs):
+            Applies the inverse affine transformation (local to global).
         __call__(xs):
-            Applies the affine transformation.
+            Applies the affine transformation (global to local).
 
     """
 
@@ -50,29 +53,48 @@ class Affine:
         """
         if A is None:
             assert dim is not None
-            self.A = np.eye(dim) + np.random.rand(dim, dim)
+            A = np.eye(dim) + np.random.rand(dim, dim)
 
         if b is None:
             assert dim is not None
             self.b = np.random.rand(dim)
+        else:
+            self.b = b
 
-        self.A = torch.tensor(self.A, dtype=torch.float64)
+        self.A = torch.tensor(A, dtype=torch.float64)
+        self.Ainv = torch.tensor(np.linalg.inv(A), dtype=torch.float64)
         self.b = torch.tensor(self.b, dtype=torch.float64)
 
-    def __call__(self, xs):
-        """Applies the affine transformation.
+
+    def inv(self, xs):
+        """Applies the affine transformation from local to global coordinates.
 
         Args:
-            xs (torch.Tensor): The input tensor.
+            xs (torch.Tensor): The local input tensor.
 
         Returns:
-            torch.Tensor: The output tensor.
+            torch.Tensor: The global output tensor.
 
         """
         ys = torch.zeros_like(xs)
         for i, x in enumerate(xs):
-            ys[i] = self.A @ xs[i] + self.b
+            ys[i] = self.A @ x + self.b
         return ys
+
+    def __call__(self, ys):
+        """Applies the affine transformation from global to local coordinates.
+
+        Args:
+            ys (torch.Tensor): The global input tensor.
+
+        Returns:
+            torch.Tensor: The local output tensor.
+
+        """
+        xs = torch.zeros_like(ys)
+        for i, y in enumerate(ys):
+            xs[i] = self.Ainv @ (y - self.b)
+        return xs
 
 
 class PolarCoordinates:

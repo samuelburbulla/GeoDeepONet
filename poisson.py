@@ -5,8 +5,8 @@ import geodeeponet as gdn
 
 # Hyperparameters
 num_collocation_points = 2**2
-branch_width = 64
-trunk_width = 128
+branch_width = 1
+trunk_width = 64
 num_loss_points = 10**2
 
 # Domain
@@ -14,11 +14,7 @@ geom = gdn.geometry.UnitSquare()
 collocation_points = geom.uniform_points(num_collocation_points)
 
 # Transformations
-phis = []
-
-num_affines = 10
-for _ in range(num_affines):
-    phis += [gdn.transformation.Affine(dim=geom.dimension)]
+phis = [gdn.transformation.Affine(A=np.eye(2), b=np.ones(2))]
 
 # Boundary condition
 bc = gdn.bc.UnitCubeDirichletBC({"left": 0, "right": 0, "top": 0, "bottom": 0})
@@ -44,11 +40,9 @@ gdn.train.train_model(
 )
 
 # Plot solution for a sample transformation
-phi = gdn.transformation.Affine(dim=geom.dimension)
-phi_loss_points = torch.stack([phi(loss_points)])
-phi_collocation_points = phi(collocation_points)
-outputs = model((phi_collocation_points, phi_loss_points))
-loss, bc = pde(outputs, phi_loss_points)
+phi = gdn.transformation.Affine(A=np.eye(2), b=np.zeros(2))
+loss_points = torch.stack([loss_points])
+outputs = model((phi.inv(collocation_points), loss_points))
+loss, bc = pde(outputs, loss_points)
 print(f"Sample transformation   Loss: {loss:.3e}  BC: {bc:.3e}")
-
-gdn.plot.plot_solution(geom, model, collocation_points, phi)
+gdn.plot.plot_solution(geom, model, collocation_points, phi, writer="show")

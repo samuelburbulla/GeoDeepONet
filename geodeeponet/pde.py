@@ -55,11 +55,13 @@ class Poisson(PDE):
 
         Args:
             bc: The boundary conditions.
-            source (float or callable, optional): The source term. Defaults to 0.
+            source (float or callable, optional): The source term (evaluated in local coordinates). Defaults to 0.
 
         """
         self.bc = bc
         self.source = source if callable(source) else lambda x: source
+        self.dirichlet_indices = []
+        self.dirichlet_values = torch.tensor([])
 
     def setup_bc(self, points):
         """Sets up the boundary condition.
@@ -68,14 +70,12 @@ class Poisson(PDE):
             points (torch.Tensor): The points sampling the domain.
 
         """
-        self.dirichlet_indices = []
-        self.dirichlet_values = torch.tensor([])
         for i, x in enumerate(points):
             if self.bc.is_dirichlet(x):
                 self.dirichlet_indices += [i]
                 self.dirichlet_values = torch.cat((self.dirichlet_values, torch.tensor([self.bc.value(x)])))
 
-    def __call__(self, u, phi_points):
+    def __call__(self, u, points):
         """Computes the loss.
 
         Args:
@@ -93,13 +93,13 @@ class Poisson(PDE):
             }
 
         # Compute derivatives
-        du = grad(u, phi_points, **kw(u))[0]
-        u_xx = grad(du[:, :, 0], phi_points, **kw(du[:, :, 0]))[0][:, :, 0]
-        u_yy = grad(du[:, :, 1], phi_points, **kw(du[:, :, 1]))[0][:, :, 1]
+        du = grad(u, points, **kw(u))[0]
+        u_xx = grad(du[:, :, 0], points, **kw(du[:, :, 0]))[0][:, :, 0]
+        u_yy = grad(du[:, :, 1], points, **kw(du[:, :, 1]))[0][:, :, 1]
         laplace_u = u_xx + u_yy
 
         # Evaluate source term
-        q = torch.tensor(self.source(phi_points))
+        q = torch.tensor(self.source(points))
 
         # Compute inner loss
         inner_loss = ((- laplace_u - q)**2).mean()
