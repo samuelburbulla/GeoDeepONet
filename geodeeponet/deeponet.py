@@ -164,6 +164,10 @@ class GeoDeepONet(torch.nn.Module):
         # Change view of params
         param = param.view(param.shape[0], 1, param.shape[1] * param.shape[2])
 
+        # Subtract mean
+        mean = torch.mean(param, dim=2, keepdim=True)
+        param = param - mean
+
         # Apply branch and trunk
         b = self.branch(param)
         t = self.trunk(point)

@@ -14,7 +14,9 @@ geom = gdn.geometry.UnitSquare()
 collocation_points = geom.uniform_points(num_collocation_points)
 
 # Transformations
-phis = [gdn.transformation.Affine(A=np.eye(2), b=np.ones(2))]
+phis = [
+    gdn.transformation.Affine(A=np.eye(2), b=np.ones(2)),
+]
 
 # Boundary condition
 bc = gdn.bc.UnitCubeDirichletBC({"left": 0, "right": 0, "top": 0, "bottom": 0})
