@@ -5,8 +5,28 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from geodeeponet.plot import plot_solution
 
 
+def compute_losses(model, pde, global_collocation_points, loss_points):
+    """Computes the inner and boundary loss.
+
+    Args:
+        model (GeoDeepONet): The GeoDeepONet model.
+        pde (PDE): The partial differential equation.
+        global_collocation_points (torch.Tensor): The collocation points transformed to global coordinates.
+        loss_points (torch.Tensor): The points to evaluate the loss at.
+
+    Returns:
+        tuple: Inner loss and boundary loss.
+
+    """
+    global_collocation_points = torch.stack(global_collocation_points)
+    loss_points = torch.stack([loss_points])
+    outputs = model((global_collocation_points, loss_points))
+    loss, bc = pde(outputs, loss_points)
+    return loss.mean(), bc.mean() 
+
+
 def train_model(geom, model, collocation_points, phis, pde, loss_points,
-                tolerance=1e-5, steps=1000, print_every=1):
+                tolerance=1e-5, steps=1000, print_every=1, plot_phis=False):
     """Trains a physics-informed GeoDeepONet model.
 
     Args:
@@ -36,19 +56,11 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
     global_collocation_points = []
     for phi in phis:
         global_collocation_points += [phi.inv(collocation_points)]
-    global_collocation_points = torch.stack(global_collocation_points)
-
-    loss_points = torch.stack([loss_points])
-
-    def compute_losses():
-        outputs = model((global_collocation_points, loss_points))
-        loss, bc = pde(outputs, loss_points)
-        return loss.mean(), bc.mean() 
 
     # Define closure
     def closure():
         optimizer.zero_grad()
-        inner_loss, boundary_loss = compute_losses()
+        inner_loss, boundary_loss = compute_losses(model, pde, global_collocation_points, loss_points)
         pde_loss = inner_loss + boundary_loss
         pde_loss.backward(retain_graph=True)
         return pde_loss
@@ -59,7 +71,7 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
         # Print losses
         if i % print_every == print_every-1:
             step = i+1
-            train_loss, train_boundary = compute_losses()
+            train_loss, train_boundary = compute_losses(model, pde, global_collocation_points, loss_points)
 
             # Add train loss to tensorboard
             writer.add_scalar("loss/train", train_loss, step)
@@ -72,10 +84,12 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
 
             if train_loss < tolerance and train_boundary < tolerance:
                 break
+    print("")
 
     # Plot solutions on tensorboard
-    for i, phi in enumerate(phis):
-        plot_solution(geom, model, collocation_points, phi, writer=writer, step=i)
+    if plot_phis:
+        print("Plotting...")
+        for i, phi in enumerate(phis):
+            plot_solution(geom, model, collocation_points, phi, writer=writer, step=i)
 
     writer.close()
-    print("")

@@ -1,6 +1,4 @@
 """Physics-informed GeoDeepONet for the Poisson problem (2D)."""
-import torch
-import numpy as np
 import geodeeponet as gdn
 
 # Hyperparameters
@@ -8,6 +6,8 @@ num_collocation_points = 2**2
 branch_width = 2
 trunk_width = 64
 num_loss_points = 10**2
+num_train = 10
+num_test = 3
 
 # Domain
 geom = gdn.geometry.UnitSquare()
@@ -15,8 +15,7 @@ collocation_points = geom.uniform_points(num_collocation_points)
 
 # Transformations
 phis = [
-    gdn.transformation.Affine(A=0.5 * np.eye(2), b=np.zeros(2)),
-    gdn.transformation.Affine(A=1.5 * np.eye(2), b=np.zeros(2)),
+    gdn.transformation.PolarCoordinates() for _ in range(num_train)
 ]
 
 # Boundary condition
@@ -39,13 +38,19 @@ pde.setup_bc(loss_points)
 
 # Train model
 gdn.train.train_model(
-    geom, model, collocation_points, phis, pde, loss_points
+    geom, model, collocation_points, phis, pde, loss_points, plot_phis=True
 )
 
-# Plot solution for a sample transformation
-phi = gdn.transformation.Affine(A=np.eye(2), b=np.ones(2))
-loss_points = torch.stack([loss_points])
-outputs = model((phi.inv(collocation_points), loss_points))
-loss, bc = pde(outputs, loss_points)
-print(f"Sample transformation   Loss: {loss.mean():.3e}  BC: {bc.mean():.3e}")
+phis = [
+    gdn.transformation.PolarCoordinates() for _ in range(num_test)
+]
+global_collocation_points = [
+    phi.inv(collocation_points) for phi in phis
+]
+
+loss, bc = gdn.train.compute_losses(model, pde, global_collocation_points, loss_points)
+print(f"Test error   Loss: {loss.mean():.3e}  BC: {bc.mean():.3e}")
+
+# Plot solution for one sample transformation
+phi = gdn.transformation.PolarCoordinates()
 gdn.plot.plot_solution(geom, model, collocation_points, phi, writer="show")

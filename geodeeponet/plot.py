@@ -1,11 +1,13 @@
-import torch
 import numpy as np
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
+import matplotlib.tri as tri
 
-def plot_solution(geom, model, collocation_points, phi, num_points=10000, writer=None, step=0):
+
+def plot_solution(geom, model, collocation_points, phi, num_points=10_000, writer=None, step=0):
     """Plots the solution of a PDE on a geometric domain.
+       For now, we assume a grid-like structure of the uniform points in a unit square.
 
     Args:
         geom (Geometry): The geometry of the domain.
@@ -27,11 +29,22 @@ def plot_solution(geom, model, collocation_points, phi, num_points=10000, writer
 
     # Detach tensors
     phix = phix.detach().numpy()
-    u = u.detach().numpy()
+    x, y = phix[:, 0], phix[:, 1]
+    u = u.detach().numpy()[0][0]
 
-    # Scatter plot
+    # Generate triangles (assumes grid-like structure)
+    n = m = int(np.sqrt(num_points))
+    triangles = []
+    for i in range(n-1):
+        for j in range(m-1):
+            triangles.append([i*m+j, i*m+j+1, (i+1)*m+j])
+            triangles.append([i*m+j+1, (i+1)*m+j, (i+1)*m+j+1])
+    triangles = np.array(triangles)
+
+    # Plot
     fig = plt.figure()
-    plt.scatter(phix[:, 0], phix[:, 1], c=u, s=10)
+    triang = tri.Triangulation(x, y, triangles)
+    plt.tricontourf(triang, u)
     plt.axis("equal")
     plt.colorbar()
 

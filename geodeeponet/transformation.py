@@ -11,17 +11,29 @@ class Identity:
 
     """
 
-    def __call__(self, xs):
-        """Returns the input.
+    def inv(self, xs):
+        """Applies the inverse identity transformation from local to global coordinates.
 
         Args:
-            xs (torch.Tensor): The input tensor.
+            xs (torch.Tensor): The local input tensor.
 
         Returns:
-            torch.Tensor: The input tensor.
+            torch.Tensor: The global output tensor.
 
         """
         return xs
+
+    def __call__(self, ys):
+        """Applies the identity transformation from global to local coordinates.
+
+        Args:
+            ys (torch.Tensor): The global input tensor.
+
+        Returns:
+            torch.Tensor: The local output tensor.
+
+        """
+        return ys
     
 
 class Affine:
@@ -42,28 +54,24 @@ class Affine:
 
     """
 
-    def __init__(self, A=None, b=None, dim=None):
+    def __init__(self, A=None, b=None, dim=2):
         """Initializes the Affine class.
 
         Args:
             A (array_like, optional): The linear transformation matrix. If None, identity matrix plus a random matrix is used. Defaults to None.
             b (array_like, optional): The translation vector. If None, a random vector is generated. Defaults to None.
-            dim (int, optional): The dimension of the input and output spaces. Required if A or b is None. Defaults to None.
+            dim (int, optional): The dimension of the input and output spaces. Defaults to 2.
 
         """
         if A is None:
-            assert dim is not None
             A = np.eye(dim) + np.random.rand(dim, dim)
 
         if b is None:
-            assert dim is not None
-            self.b = np.random.rand(dim)
-        else:
-            self.b = b
+            b = np.random.rand(dim)
 
         self.A = torch.tensor(A, dtype=torch.float64)
         self.Ainv = torch.tensor(np.linalg.inv(A), dtype=torch.float64)
-        self.b = torch.tensor(self.b, dtype=torch.float64)
+        self.b = torch.tensor(b, dtype=torch.float64)
 
 
     def inv(self, xs):
@@ -125,22 +133,28 @@ class PolarCoordinates:
 
         """
         if r_min is None:
-            self.r_min = np.random.rand()
+            r_min = np.random.rand()
         if r_max is None:
-            self.r_max = self.r_min + np.random.rand()
+            r_max = r_min + np.random.rand()
         if theta_min is None:
-            self.theta_min = 2 * np.pi * np.random.rand()
+            theta_min = 2 * np.pi * np.random.rand()
         if theta_max is None:
-            self.theta_max = self.theta_min + 2 * np.pi * np.random.rand()
+            theta_max = theta_min + 2 * np.pi * np.random.rand()
 
-    def __call__(self, xs):
-        """Applies the polar coordinate transformation.
+        self.r_min = r_min
+        self.r_max = r_max
+        self.theta_min = theta_min
+        self.theta_max = theta_max
+
+
+    def inv(self, xs):
+        """Applies the transformation from local to global coordinates.
 
         Args:
-            xs (torch.Tensor): The input tensor.
+            xs (torch.Tensor): The local input tensor.
 
         Returns:
-            torch.Tensor: The output tensor.
+            torch.Tensor: The global output tensor.
 
         """
         ys = torch.zeros_like(xs)
@@ -150,3 +164,20 @@ class PolarCoordinates:
             ys[i][0] = r * torch.cos(theta)
             ys[i][1] = r * torch.sin(theta)
         return ys
+    
+
+    def __call__(self, ys):
+        """Applies the transformation from global to local coordinates.
+
+        Args:
+            ys (torch.Tensor): The global input tensor.
+
+        Returns:
+            torch.Tensor: The local output tensor.
+
+        """
+        xs = torch.zeros_like(ys)
+        for i, y in enumerate(ys):
+            xs[i][0] = (torch.norm(y) - self.r_min) / (self.r_max - self.r_min)
+            xs[i][1] = (torch.atan2(y[1], y[0]) - self.theta_min) / (self.theta_max - self.theta_min)
+        return xs
