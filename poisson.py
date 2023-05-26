@@ -5,7 +5,7 @@ import geodeeponet as gdn
 
 # Hyperparameters
 num_collocation_points = 2**2
-branch_width = 1
+branch_width = 2
 trunk_width = 64
 num_loss_points = 10**2
 
@@ -15,7 +15,8 @@ collocation_points = geom.uniform_points(num_collocation_points)
 
 # Transformations
 phis = [
-    gdn.transformation.Affine(A=np.eye(2), b=np.ones(2)),
+    gdn.transformation.Affine(A=0.5 * np.eye(2), b=np.zeros(2)),
+    gdn.transformation.Affine(A=1.5 * np.eye(2), b=np.zeros(2)),
 ]
 
 # Boundary condition
@@ -42,9 +43,9 @@ gdn.train.train_model(
 )
 
 # Plot solution for a sample transformation
-phi = gdn.transformation.Affine(A=np.eye(2), b=np.zeros(2))
+phi = gdn.transformation.Affine(A=np.eye(2), b=np.ones(2))
 loss_points = torch.stack([loss_points])
 outputs = model((phi.inv(collocation_points), loss_points))
 loss, bc = pde(outputs, loss_points)
-print(f"Sample transformation   Loss: {loss:.3e}  BC: {bc:.3e}")
+print(f"Sample transformation   Loss: {loss.mean():.3e}  BC: {bc.mean():.3e}")
 gdn.plot.plot_solution(geom, model, collocation_points, phi, writer="show")

@@ -86,6 +86,7 @@ class Poisson(PDE):
             torch.Tensor: The loss tensor.
 
         """
+        batch_size = u.shape[0]
         def kw(w):
             return {
                 "grad_outputs": torch.ones_like(w),
@@ -93,20 +94,24 @@ class Poisson(PDE):
             }
 
         # Compute derivatives
-        du = grad(u, points, **kw(u))[0]
-        u_xx = grad(du[:, :, 0], points, **kw(du[:, :, 0]))[0][:, :, 0]
-        u_yy = grad(du[:, :, 1], points, **kw(du[:, :, 1]))[0][:, :, 1]
-        laplace_u = u_xx + u_yy
+        inner_loss = torch.zeros((batch_size))
+        for i in range(batch_size):
+            du = grad(u[i, :, :], points, **kw(u[i, :, :]))[0]
+            u_xx = grad(du[:, :, 0], points, **kw(du[:, :, 0]))[0][:, :, 0]
+            u_yy = grad(du[:, :, 1], points, **kw(du[:, :, 1]))[0][:, :, 1]
+            laplace_u = u_xx + u_yy
 
-        # Evaluate source term
-        q = torch.tensor(self.source(points))
+            # Evaluate source term
+            q = torch.tensor(self.source(points))
 
-        # Compute inner loss
-        inner_loss = ((- laplace_u - q)**2).mean()
+            # Compute inner loss
+            inner_loss[i] = ((- laplace_u - q)**2).mean()
 
         # Compute boundary loss
-        u_boundary = u[:, :, self.dirichlet_indices]
-        u_dirichlet = self.dirichlet_values.repeat(u.shape[0], 1, 1)
-        boundary_loss = ((u_boundary - u_dirichlet)**2).mean()
-
+        boundary_loss = torch.zeros((batch_size))
+        for i in range(batch_size):
+            u_boundary = u[i, :, self.dirichlet_indices]
+            u_dirichlet = self.dirichlet_values.unsqueeze(0)
+            boundary_loss[i] = ((u_boundary - u_dirichlet)**2).mean()
+        
         return inner_loss, boundary_loss
