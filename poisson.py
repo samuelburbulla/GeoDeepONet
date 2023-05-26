@@ -2,13 +2,13 @@
 import geodeeponet as gdn
 
 # Hyperparameters
-dim = 3
+dim = 2
 num_collocation_points = 2**dim
-branch_width = 8
-trunk_width = 64
+branch_width = 1
+trunk_width = 32
 num_loss_points = 10**dim
 num_train = 10
-num_test = 3
+num_test = 1
 
 # Domain
 geom = gdn.geometry.UnitCube(dim)
@@ -20,7 +20,7 @@ phis = [
 ]
 
 # Boundary condition
-bc = gdn.bc.UnitCubeDirichletBC({"left": 0, "right": 0, "top": 0, "bottom": 0})
+bc = gdn.bc.UnitCubeDirichletBC({"left": 0, "right": 0})
 
 # Define PDE
 pde = gdn.pde.Poisson(bc, source=1)
@@ -39,7 +39,7 @@ pde.setup_bc(loss_points)
 
 # Train model
 gdn.train.train_model(
-    geom, model, collocation_points, phis, pde, loss_points, plot_phis=True
+    geom, model, collocation_points, phis, pde, loss_points, plot_phis=False
 )
 
 # Validate model

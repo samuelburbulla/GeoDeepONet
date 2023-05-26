@@ -49,7 +49,7 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
         model.parameters(),
         tolerance_grad=0,
         tolerance_change=0,
-        line_search_fn='strong_wolfe'
+        line_search_fn='strong_wolfe',
     )
 
     # Helper function to compute losses
