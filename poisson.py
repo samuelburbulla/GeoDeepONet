@@ -2,15 +2,16 @@
 import geodeeponet as gdn
 
 # Hyperparameters
-num_collocation_points = 2**2
-branch_width = 2
+dim = 3
+num_collocation_points = 2**dim
+branch_width = 8
 trunk_width = 64
-num_loss_points = 10**2
+num_loss_points = 10**dim
 num_train = 10
 num_test = 3
 
 # Domain
-geom = gdn.geometry.UnitSquare()
+geom = gdn.geometry.UnitCube(dim)
 collocation_points = geom.uniform_points(num_collocation_points)
 
 # Transformations
@@ -29,7 +30,7 @@ model = gdn.deeponet.GeoDeepONet(
     branch_width=branch_width,
     trunk_width=trunk_width,
     num_collocation_points=len(collocation_points),
-    dimension=geom.dimension
+    dimension=geom.dim
 )
 
 # Setup loss points and bc
@@ -41,6 +42,7 @@ gdn.train.train_model(
     geom, model, collocation_points, phis, pde, loss_points, plot_phis=True
 )
 
+# Validate model
 phis = [
     gdn.transformation.PolarCoordinates() for _ in range(num_test)
 ]
@@ -49,8 +51,7 @@ global_collocation_points = [
 ]
 
 loss, bc = gdn.train.compute_losses(model, pde, global_collocation_points, loss_points)
-print(f"Test error   Loss: {loss.mean():.3e}  BC: {bc.mean():.3e}")
+print(f"Validation   Loss: {loss.mean():.3e}  BC: {bc.mean():.3e}")
 
 # Plot solution for one sample transformation
-phi = gdn.transformation.PolarCoordinates()
-gdn.plot.plot_solution(geom, model, collocation_points, phi, writer="show")
+gdn.plot.plot_solution(geom, model, collocation_points, phis[0], writer="show")

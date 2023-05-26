@@ -2,35 +2,38 @@ import numpy as np
 import torch
 
 
-class UnitSquare:
-    """A class representing a unit square with uniform sampling.
+class UnitCube:
+    """A class representing a unit cube with uniform sampling.
 
     Attributes:
-        dimension (int): The dimension of the unit square.
+        dim (int): The dimension of the unit cube.
 
     """
 
-    def __init__(self):
-        self.dimension = 2
+    def __init__(self, dim):
+        self.dim = dim
 
-    @staticmethod
-    def uniform_points(num_points):
-        """Generate uniform collocation points within the unit square.
+    def uniform_points(self, num_points):
+        """Generate uniform collocation points within the unit cube.
 
         Args:
             num_points (int): The number of collocation points to generate.
 
         Returns:
-            torch.Tensor: A tensor of shape (num_points, 2) representing the
+            torch.Tensor: A tensor of shape (num_points, dim) representing the
                 generated collocation points.
 
         """
-        n = int(np.ceil(np.sqrt(num_points)))
-        if n**2 != num_points:
-            print(f"Warning: {n**2} instead of {num_points} "
+        d = self.dim
+        n = int(np.ceil(num_points**(1/d)))
+        if n**d != num_points:
+            print(f"Warning: {n**d} instead of {num_points} "
                   f"collocation points used.")
 
-        h = 1 / (n - 1)
-        xy = np.mgrid[0:1+1e-8:h, 0:1+1e-8:h].reshape(2, -1).T
+        grids = []
+        for _ in range(d):
+            grids.append(np.linspace(0, 1, n))
+        mesh = np.meshgrid(*grids, indexing='ij')
+        xy = np.array(mesh).reshape(d, -1).T
         xy = torch.tensor(xy, requires_grad=True)
         return xy

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.tri as tri
 
 
-def plot_solution(geom, model, collocation_points, phi, num_points=10_000, writer=None, step=0):
+def plot_solution(geom, model, collocation_points, phi, num_points=5**6, writer=None, step=0):
     """Plots the solution of a PDE on a geometric domain.
        For now, we assume a grid-like structure of the uniform points in a unit square.
 
@@ -29,25 +29,37 @@ def plot_solution(geom, model, collocation_points, phi, num_points=10_000, write
 
     # Detach tensors
     phix = phix.detach().numpy()
-    x, y = phix[:, 0], phix[:, 1]
     u = u.detach().numpy()[0][0]
-
-    # Generate triangles (assumes grid-like structure)
-    n = m = int(np.sqrt(num_points))
-    triangles = []
-    for i in range(n-1):
-        for j in range(m-1):
-            triangles.append([i*m+j, i*m+j+1, (i+1)*m+j])
-            triangles.append([i*m+j+1, (i+1)*m+j, (i+1)*m+j+1])
-    triangles = np.array(triangles)
 
     # Plot
     fig = plt.figure()
-    triang = tri.Triangulation(x, y, triangles)
-    plt.tricontourf(triang, u)
-    plt.axis("equal")
-    plt.colorbar()
 
+    if geom.dim == 1:
+        raise NotImplementedError("1D plotting not implemented yet.")
+
+    if geom.dim == 2:
+        # Generate triangles (assumes grid-like structure)
+        n = m = int(np.sqrt(num_points))
+        triangles = []
+        for i in range(n-1):
+            for j in range(m-1):
+                triangles.append([i*m+j, i*m+j+1, (i+1)*m+j])
+                triangles.append([i*m+j+1, (i+1)*m+j, (i+1)*m+j+1])
+        triangles = np.array(triangles)
+        x, y = phix[:, 0], phix[:, 1]
+        triang = tri.Triangulation(x, y, triangles)
+        plt.tricontourf(triang, u)
+        plt.colorbar()
+
+    if geom.dim == 3:
+        x, y, z = phix[:, 0], phix[:, 1], phix[:, 2]
+        ax = fig.add_subplot(111, projection='3d')
+        scatter = ax.scatter(x, y, z, c=u, alpha=0.5, lw=0, s=30)
+        plt.colorbar(scatter)
+
+    plt.axis("equal")
+
+    # Save figure
     if writer == "show":
         plt.savefig("solution.png", dpi=300)
     else:

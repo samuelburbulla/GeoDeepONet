@@ -113,6 +113,8 @@ class PolarCoordinates:
         r_max (float): The maximum radius.
         theta_min (float): The minimum angle.
         theta_max (float): The maximum angle.
+        phi_min (float): The second minimum angle (3D).
+        phi_max (float): The second maximum angle (3D).
 
     Methods:
         __init__(r_min=None, r_max=None, theta_min=None, theta_max=None):
@@ -122,7 +124,7 @@ class PolarCoordinates:
 
     """
 
-    def __init__(self, r_min=None, r_max=None, theta_min=None, theta_max=None):
+    def __init__(self, r_min=None, r_max=None, theta_min=None, theta_max=None, phi_min=None, phi_max=None):
         """Initializes the PolarCoordinates class.
 
         Args:
@@ -130,6 +132,8 @@ class PolarCoordinates:
             r_max (float, optional): The maximum radius. If None, a random value plus r_min is generated. Defaults to None.
             theta_min (float, optional): The minimum angle. If None, a random value is generated. Defaults to None.
             theta_max (float, optional): The maximum angle. If None, a random value plus theta_min is generated. Defaults to None.
+            phi_min (float, optional): The second minimum angle (3D). If None, a random value is generated. Defaults to None.
+            phi_max (float, optional): The second maximum angle (3D). If None, a random value plus phi_min is generated. Defaults to None.
 
         """
         if r_min is None:
@@ -140,12 +144,19 @@ class PolarCoordinates:
             theta_min = 2 * np.pi * np.random.rand()
         if theta_max is None:
             theta_max = theta_min + 2 * np.pi * np.random.rand()
+            theta_max = theta_max % (2*np.pi)
+        if phi_min is None:
+            phi_min = np.pi * np.random.rand()
+        if phi_max is None:
+            phi_max = phi_min + np.pi * np.random.rand()
+            phi_max = phi_max % np.pi
 
         self.r_min = r_min
         self.r_max = r_max
         self.theta_min = theta_min
         self.theta_max = theta_max
-
+        self.phi_min = phi_min
+        self.phi_max = phi_max
 
     def inv(self, xs):
         """Applies the transformation from local to global coordinates.
@@ -161,8 +172,17 @@ class PolarCoordinates:
         for i, x in enumerate(xs):
             r = self.r_min + (self.r_max - self.r_min) * x[0]
             theta = self.theta_min + (self.theta_max - self.theta_min) * x[1]
-            ys[i][0] = r * torch.cos(theta)
-            ys[i][1] = r * torch.sin(theta)
+
+            if len(x) == 2:
+                ys[i][0] = r * torch.cos(theta)
+                ys[i][1] = r * torch.sin(theta)
+
+            if len(x) == 3:
+                phi = self.phi_min + (self.phi_max - self.phi_min) * x[2]
+                ys[i][0] = r * torch.cos(theta) * torch.sin(phi)
+                ys[i][1] = r * torch.sin(theta) * torch.sin(phi)
+                ys[i][2] = r * torch.cos(phi)
+
         return ys
     
 
@@ -178,6 +198,13 @@ class PolarCoordinates:
         """
         xs = torch.zeros_like(ys)
         for i, y in enumerate(ys):
-            xs[i][0] = (torch.norm(y) - self.r_min) / (self.r_max - self.r_min)
-            xs[i][1] = (torch.atan2(y[1], y[0]) - self.theta_min) / (self.theta_max - self.theta_min)
+            r = torch.norm(y)
+            theta = torch.atan2(y[1], y[0])
+
+            xs[i][0] = (r - self.r_min) / (self.r_max - self.r_min)
+            xs[i][1] = (theta - self.theta_min) / (self.theta_max - self.theta_min)
+
+            if len(y) == 3:
+                phi = torch.arccos(y[2] / r)
+                xs[i][2] = (phi - self.phi_min) / (self.phi_max - self.phi_min)
         return xs

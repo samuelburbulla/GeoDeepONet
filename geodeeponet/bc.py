@@ -12,23 +12,24 @@ class UnitCubeDirichletBC:
 
     """
 
-    def __init__(self, value_dict={}):
+    def __init__(self, value_dict={}, eps=1e-8):
         """Initializes the UnitCubeDirichletBC class with a value dictionary.
 
         Args:
             value_dict (dict, optional): A dictionary that contains the boundary condition values.
-                The keys should be one of "left", "right", "bottom", "top" and map to float or callable.
+                The keys should be one of "left", "right", "bottom", "top", "front", "back", and 
+                map to float or callable.
                 Defaults to {}.
 
         Raises:
             AssertionError: If the keys in `value_dict` are not one of "left", "right", "bottom", "top".
 
         """
-        assert all(x in ["left", "right", "bottom", "top"] for x in value_dict.keys())
+        assert all(x in ["left", "right", "bottom", "top", "front", "back"] for x in value_dict.keys())
         self.value_dict = value_dict
+        self.eps = eps
 
-    @staticmethod
-    def _where(x):
+    def _where(self, x):
         """Determines which boundary of the unit cube the given point 'x' belongs to.
 
         Args:
@@ -38,16 +39,24 @@ class UnitCubeDirichletBC:
             str: The name of the boundary that the point 'x' belongs to.
 
         """
-        if x[0] == 0:
+        if abs(x[0] - 0.0) < self.eps:
             return "left"
-        elif x[0] == 1:
+        if abs(x[0] - 1.0) < self.eps:
             return "right"
-        elif x[1] == 0:
-            return "bottom"
-        elif x[1] == 1:
-            return "top"
-        else:
-            return None
+        
+        if len(x) >= 2:
+            if abs(x[1] - 0.0) < self.eps:
+                return "bottom"
+            if abs(x[1] - 1.0) < self.eps:
+                return "top"
+
+        if len(x) >= 3:
+            if abs(x[2] - 0.0) < self.eps:
+                return "front"
+            if abs(x[2] - 1.0) < self.eps:
+                return "back"
+
+        return None
 
     def is_dirichlet(self, x):
         """Checks if a given point 'x' is on a Dirichlet boundary.
