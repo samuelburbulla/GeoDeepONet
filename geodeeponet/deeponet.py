@@ -122,7 +122,7 @@ class GeoDeepONet(torch.nn.Module):
 
     """
 
-    def __init__(self, branch_width, trunk_width, num_collocation_points, dimension):
+    def __init__(self, branch_width, trunk_width, num_collocation_points, dimension, outputs=1):
         """Initializes the GeoDeepONet class.
 
         Args:
@@ -130,18 +130,28 @@ class GeoDeepONet(torch.nn.Module):
             trunk_width (int): The width of the output layer of the trunk network.
             num_collocation_points (int): The number of collocation points.
             dimension (int): The dimension of the domain.
+            outputs (int): The number of outputs. Defaults to 1.
 
         """
         super(GeoDeepONet, self).__init__()
-        self.branch = BranchNetwork(
-            input_size=num_collocation_points * dimension,
-            layer_width=branch_width,
-            output_size=trunk_width,
-        )
-        self.trunk = TrunkNetwork(
-            input_size=dimension,
-            output_size=trunk_width,
-        )
+
+        self.branches = torch.nn.ModuleList([
+            BranchNetwork(
+                input_size=num_collocation_points * dimension,
+                layer_width=branch_width,
+                output_size=trunk_width,
+            )
+            for _ in range(outputs)
+        ])
+
+        self.trunks = torch.nn.ModuleList([
+            TrunkNetwork(
+                input_size=dimension,
+                output_size=trunk_width,
+            )
+            for _ in range(outputs)
+        ])
+        self.outputs = outputs
 
     def forward(self, x):
         """Computes the forward pass of the DeepONet model.
@@ -168,9 +178,17 @@ class GeoDeepONet(torch.nn.Module):
         mean = torch.mean(param, dim=2, keepdim=True)
         param = param - mean
 
-        # Apply branch and trunk
-        b = self.branch(param)
-        t = self.trunk(point)
+        # Compute outputs
+        out = torch.zeros((param.shape[0], self.outputs, point.shape[1]))
+        for i in range(self.outputs):
+            # Apply branch and trunk
+            b = self.branches[i](param)
+            t = self.trunks[i](point)
 
-        # Batch-wise dot product
-        return torch.einsum("bki,bni->bkn", b, t)
+            # Batch-wise dot product
+            dot = torch.einsum("bki,bni->bkn", b, t)
+
+            # Assign this output
+            out[:, i, :] = dot[:, 0, :]
+
+        return out

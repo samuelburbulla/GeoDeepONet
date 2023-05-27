@@ -29,7 +29,14 @@ def plot_solution(geom, model, collocation_points, phi, num_points=5**6, writer=
 
     # Detach tensors
     phix = phix.detach().numpy()
-    u = u.detach().numpy()[0][0]
+    u = u.detach().numpy()[0]
+
+    # Deformation
+    if u.shape[0] == geom.dim and geom.dim >= 2:
+        phix += u.T
+
+    # Compute norm
+    u = np.linalg.norm(u, axis=0)
 
     # Plot
     fig = plt.figure()
