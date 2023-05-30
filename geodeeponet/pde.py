@@ -1,8 +1,8 @@
 import abc
 import torch
 import torch.autograd
-from geodeeponet.grad import gradient, div, jacobian
-
+from geodeeponet.vectorcalculus import VectorCalculus
+from torch.autograd import grad
 
 class PDE(abc.ABC):
     """Abstract base class for partial differential equations."""
@@ -78,32 +78,26 @@ class Poisson(PDE):
 
         Args:
             u (torch.Tensor): The solution tensor.
-            phi_points (torch.Tensor): The points in the (global) domain.
+            points (torch.Tensor): The points in the (global) domain.
 
         Returns:
             torch.Tensor: The loss tensor.
 
         """
-        batch_size = u.shape[0]
-       
         # Compute derivatives
-        inner_loss = torch.zeros((batch_size))
-        for i in range(batch_size):
-            gradu = gradient(u[i, :, :], points)
-            laplace_u = div(gradu, points)
+        vc = VectorCalculus(points)
+        laplace_u = vc.div(vc.grad(u))
 
-            # Evaluate source term
-            q = torch.tensor(self.source(points))
+        # Evaluate source term
+        q = torch.tensor(self.source(points))
 
-            # Compute inner loss
-            inner_loss[i] = ((- laplace_u - q)**2).mean()
+        # Compute inner loss
+        inner_loss = ((- laplace_u - q)**2).mean()
 
         # Compute boundary loss
-        boundary_loss = torch.zeros((batch_size))
-        for i in range(batch_size):
-            u_boundary = u[i, :, self.dirichlet_indices]
-            u_dirichlet = self.dirichlet_values.unsqueeze(0)
-            boundary_loss[i] = ((u_boundary - u_dirichlet)**2).mean()
+        u_boundary = u[:, :, self.dirichlet_indices]
+        u_dirichlet = self.dirichlet_values.unsqueeze(0)
+        boundary_loss = ((u_boundary - u_dirichlet)**2).mean()
         
         return inner_loss, boundary_loss
 
@@ -120,27 +114,30 @@ class Elasticity(PDE):
 
     """
 
-    def __init__(self, bc, dim, lamb=1.0, mu=1.0, gravity=None):
+    def __init__(self, bc, dim, E=100, nu=0.3, rho=1, gravity=None):
         """Initializes the Elasticity class.
 
         Args:
             bc: The boundary conditions.
             dim (int): The dimension of the problem.
-            lamb (float, optional): The Lamé parameter $\lambda$. Defaults to 1.0.
-            mu (float, optional): The Lamé parameter $\mu$. Defaults to 1.0.
-            gravity (torch.Tensor): The gravity vector. Defaults to [-1, 0, 0].
+            E (float, optional): Young's modulus $E$. Defaults to 200e9 (steel).
+            nu (float, optional): Poisson's ratio $\nu$. Defaults to 0.3 (steel).
+            rho (float, optional): The density $\rho$. Defaults to 8e3 (steel).
+            gravity (torch.Tensor): The gravity vector. Defaults to [0, 0, -9.81].
 
         """
         self.outputs = dim
         self.bc = bc
         self.dim = dim
-        self.lamb = lamb
-        self.mu = mu
+
+        # Lame parameters
+        self.lamb = E * nu / ((1 + nu) * (1 - 2 * nu))
+        self.mu = E / (2 * (1 + nu))
 
         if gravity is None:
             gravity = torch.zeros(dim)
-            gravity[-1] = -1
-        self.gravity = gravity
+            gravity[-1] = -9.81
+        self.gravity = rho * gravity
 
         self.dirichlet_indices = []
         self.dirichlet_values = torch.tensor([])
@@ -158,14 +155,14 @@ class Elasticity(PDE):
                 self.dirichlet_values = torch.cat(
                     (self.dirichlet_values, torch.tensor([self.bc.value(x)]))
                 )
-        self.dirichlet_values = self.dirichlet_values.T
+        self.dirichlet_values = self.dirichlet_values.transpose(0, 1)
 
     def __call__(self, u, points):
         """Computes the loss.
 
         Args:
-            u (torch.Tensor): The solution tensor (displacement vector).
-            points (torch.Tensor): The points in the (global) domain.
+            u (torch.Tensor): The solution tensor (displacement vector) of shape [batch_size, output_size, num_points].
+            points (torch.Tensor): The points in the (global) domain of shape [batch_size, num_points, dim].
 
         Returns:
             (torch.Tensor, torch.Tensor): Tuple of inner and boundary loss tensor.
@@ -173,38 +170,31 @@ class Elasticity(PDE):
         """
         batch_size = u.shape[0]
         num_points = points.shape[1]
+        vc = VectorCalculus(points)
 
         # Create gravity tensor
-        g = self.gravity.repeat(num_points, 1)
+        g = self.gravity.unsqueeze(-1).repeat(1, 1, num_points)
 
-        # Compute derivatives
-        inner_loss = torch.zeros((batch_size))
-        for i in range(batch_size):
-            # Assemble: sigma = lamb * div(u) * I
-            us = u[i, :, :].transpose(0, 1).unsqueeze(0)
-            divu = div(us, points)
-            divuI = divu.view(1, num_points, 1, 1) * torch.eye(self.dim)
-            sigma = self.lamb * divuI[0]
+        # Assemble: sigma = lamb * div(u) * I
+        divu = vc.div(u)
+        divuI = (divu.view(1, num_points, 1, 1) * torch.eye(self.dim)).transpose(1, 2)
+        sigma = self.lamb * divuI
 
-            # Assemble: sigma += mu * (grad(u) + grad(u)^T)
-            gradu = jacobian(u[i], points)
-            graduT = torch.transpose(gradu, 1, 2)
-            sigma += self.mu * (gradu + graduT)
+        # Assemble: sigma += mu * (grad(u) + grad(u)^T)
+        gradu = vc.grad(u)
+        graduT = torch.transpose(gradu, 1, 3)
+        sigma = self.mu * (gradu + graduT)
 
-            # Compute div(sigma)
-            divsigma = []
-            for d in range(self.dim):
-                divsigma += [div(sigma[:, :, d].unsqueeze(0), points)]
-            divsigma = torch.stack(divsigma, dim=2)[0]
+        # Compute div(sigma)
+        divsigma = vc.div(sigma)
 
-            # Compute: - div(sigma) = g
-            inner_loss[i] = ((- divsigma - g)**2).mean()
+        # Compute: - div(sigma) = g
+        inner_loss = ((- divsigma - g)**2).mean()
 
         # Compute boundary loss
         boundary_loss = torch.zeros((batch_size))
-        for i in range(batch_size):
-            u_boundary = u[i, :, self.dirichlet_indices]
-            u_dirichlet = self.dirichlet_values
-            boundary_loss[i] = ((u_boundary - u_dirichlet)**2).mean()
+        u_boundary = u[:, :, self.dirichlet_indices]
+        u_dirichlet = self.dirichlet_values
+        boundary_loss = ((u_boundary - u_dirichlet)**2).mean()
 
         return inner_loss, boundary_loss

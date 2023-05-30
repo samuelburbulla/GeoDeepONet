@@ -5,7 +5,7 @@ import geodeeponet as gdn
 dim = 2
 num_collocation_points = 2**dim
 branch_width = 1
-trunk_width = 128
+trunk_width = 32
 num_loss_points = 10**dim
 num_train = 1
 num_test = 1
@@ -17,12 +17,11 @@ collocation_points = geom.uniform_points(num_collocation_points)
 # Transformations
 import numpy as np
 phis = [
-    gdn.transformation.Affine(A=np.array([[4., 0], [0., 1.]]), b=np.zeros(dim)) for _ in range(num_train)
-    # gdn.transformation.PolarCoordinates() for _ in range(num_train)
+    gdn.transformation.Affine(A=np.array([[1., 0.], [0., 1.]]), b=np.zeros(dim)) for _ in range(num_train)
 ]
 
 # Boundary condition
-bc = gdn.bc.UnitCubeDirichletBC({"left": [0]*dim, "right": [0]*dim})
+bc = gdn.bc.UnitCubeDirichletBC({"bottom": [0, 0]})
 
 # Define PDE
 pde = gdn.pde.Elasticity(bc, dim)

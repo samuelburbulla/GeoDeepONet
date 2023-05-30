@@ -22,11 +22,11 @@ def compute_losses(model, pde, global_collocation_points, loss_points):
     loss_points = torch.stack([loss_points])
     outputs = model((global_collocation_points, loss_points))
     loss, bc = pde(outputs, loss_points)
-    return loss.mean(), bc.mean() 
+    return loss, bc
 
 
 def train_model(geom, model, collocation_points, phis, pde, loss_points,
-                tolerance=1e-5, steps=1000, print_every=1, plot_phis=False):
+                tolerance=1e-5, steps=100, print_every=1, plot_phis=False):
     """Trains a physics-informed GeoDeepONet model.
 
     Args:
