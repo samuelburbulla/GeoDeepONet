@@ -69,9 +69,8 @@ class Affine:
         if b is None:
             b = np.random.rand(dim)
 
-        self.A = torch.tensor(A, dtype=torch.float64)
-        self.Ainv = torch.tensor(np.linalg.inv(A), dtype=torch.float64)
-        self.b = torch.tensor(b, dtype=torch.float64)
+        self.A = torch.tensor(A, requires_grad=True)
+        self.b = torch.tensor(b, requires_grad=True)
 
 
     def inv(self, xs):
@@ -84,10 +83,7 @@ class Affine:
             torch.Tensor: The global output tensor.
 
         """
-        ys = torch.zeros_like(xs)
-        for i, x in enumerate(xs):
-            ys[i] = self.A @ x + self.b
-        return ys
+        return torch.matmul(xs, self.A) + self.b
 
     def __call__(self, ys):
         """Applies the affine transformation from global to local coordinates.
@@ -99,10 +95,7 @@ class Affine:
             torch.Tensor: The local output tensor.
 
         """
-        xs = torch.zeros_like(ys)
-        for i, y in enumerate(ys):
-            xs[i] = self.Ainv @ (y - self.b)
-        return xs
+        return torch.matmul(ys - self.b, torch.inverse(self.A))
 
 
 class PolarCoordinates:

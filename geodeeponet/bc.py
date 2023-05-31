@@ -1,3 +1,6 @@
+import torch
+import numpy as np
+
 class UnitCubeDirichletBC:
     """Class to represent Dirichlet boundary condition for a unit cube.
 
@@ -57,27 +60,87 @@ class UnitCubeDirichletBC:
                 return "back"
 
         return None
+    
+    def on_boundary(self, x):
+        """Checks if a given point 'x' is on a boundary of the unit cube.
+
+        Args:
+            x (array_like): A point in the unit cube.
+
+        Returns:
+            bool: True if the point 'x' is on a boundary, False otherwise.
+
+        """
+        return self._where(x) is not None
 
     def is_dirichlet(self, x):
         """Checks if a given point 'x' is on a Dirichlet boundary.
 
         Args:
-            x (array_like): A point in the unit cube.
+            x (array_like): A point on the boundary of the unit cube.
 
         Returns:
             bool: True if the point 'x' is on a Dirichlet boundary, False otherwise.
 
         """
         return self._where(x) in self.value_dict
+    
+    def is_neumann(self, x):
+        """Checks if a given point 'x' is on a Neumann boundary.
+
+        Args:
+            x (array_like): A point on the boundary of the unit cube.
+
+        Returns:
+            bool: True if the point 'x' is on a Neumann boundary, False otherwise.
+
+        """
+        return self.on_boundary(x) and not self.is_dirichlet(x)
 
     def value(self, x):
         """Returns the value of the Dirichlet boundary condition at a given point 'x'.
 
         Args:
-            x (array_like): A point in the unit cube.
+            x (array_like): A point on the boundary of the unit cube.
 
         Returns:
             float: The value of the Dirichlet boundary condition at the point 'x'.
 
         """
-        return self.value_dict[self._where(x)]
+        v = self.value_dict[self._where(x)]
+        if callable(v):
+            return v(x)
+        else:
+            return v
+    
+    def normal(self, x):
+        """Returns the normal of the boundary at a given point 'x'.
+
+        Args:
+            x (array_like): A point on the boundary of the unit cube.
+
+        Returns:
+            float: The normal of the boundary condition at the point 'x'.
+
+        """
+        n = torch.zeros_like(x)
+
+        w = self._where(x)
+        if w == "left":
+            n[0] = -1.
+        if w == "right":
+            n[0] = 1.
+
+        if len(x) >= 2:
+            if w == "bottom":
+                n[1] = -1.
+            if w == "top":
+                n[1] = 1.
+
+        if len(x) >= 3:
+            if w == "front":
+                n[2] = -1.
+            if w == "back":
+                n[2] = 1.
+        
+        return torch.as_tensor(n, dtype=torch.float32)

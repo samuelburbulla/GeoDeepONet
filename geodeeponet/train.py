@@ -5,7 +5,7 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from geodeeponet.plot import plot_solution
 
 
-def compute_losses(model, pde, global_collocation_points, loss_points):
+def compute_losses(model, pde, global_collocation_points, loss_points, jacobians):
     """Computes the inner and boundary loss.
 
     Args:
@@ -13,20 +13,19 @@ def compute_losses(model, pde, global_collocation_points, loss_points):
         pde (PDE): The partial differential equation.
         global_collocation_points (torch.Tensor): The collocation points transformed to global coordinates.
         loss_points (torch.Tensor): The points to evaluate the loss at.
+        jacobians (torch.Tensor): The Jacobians of the transformation functions.
 
     Returns:
         tuple: Inner loss and boundary loss.
 
     """
-    global_collocation_points = torch.stack(global_collocation_points)
-    loss_points = torch.stack([loss_points])
     outputs = model((global_collocation_points, loss_points))
-    loss, bc = pde(outputs, loss_points)
+    loss, bc = pde(outputs, loss_points, jacobians)
     return loss, bc
 
 
 def train_model(geom, model, collocation_points, phis, pde, loss_points,
-                tolerance=1e-5, steps=100, print_every=1, plot_phis=False):
+                tolerance=1e-5, steps=200, print_every=1, plot_phis=False):
     """Trains a physics-informed GeoDeepONet model.
 
     Args:
@@ -52,15 +51,22 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
         line_search_fn='strong_wolfe',
     )
 
-    # Helper function to compute losses
+    # Get global collocation and loss points
     global_collocation_points = []
+    jacobians = []
     for phi in phis:
         global_collocation_points += [phi.inv(collocation_points)]
+        global_loss_points = phi.inv(loss_points)
+        jac = torch.autograd.functional.jacobian(phi, global_loss_points)
+        jacobians += [jac.sum(axis=2)] # type: ignore
+
+    global_collocation_points = torch.stack(global_collocation_points)
+    jacobians = torch.stack(jacobians)
 
     # Define closure
     def closure():
         optimizer.zero_grad()
-        inner_loss, boundary_loss = compute_losses(model, pde, global_collocation_points, loss_points)
+        inner_loss, boundary_loss = compute_losses(model, pde, global_collocation_points, loss_points, jacobians)
         pde_loss = inner_loss + boundary_loss
         pde_loss.backward(retain_graph=True)
         return pde_loss
@@ -71,7 +77,7 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
         # Print losses
         if i % print_every == print_every-1:
             step = i+1
-            train_loss, train_boundary = compute_losses(model, pde, global_collocation_points, loss_points)
+            train_loss, train_boundary = compute_losses(model, pde, global_collocation_points, loss_points, jacobians)
 
             # Add train loss to tensorboard
             writer.add_scalar("loss/train", train_loss, step)

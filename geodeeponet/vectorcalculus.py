@@ -2,22 +2,23 @@ import torch
 from torch.autograd import grad
 
 class VectorCalculus:
-    """Vector calculus for PyTorch.
+    """Vector calculus for PyTorch with coordinate transformation.
     
     This class encapsulates the computation of the gradient and divergence 
-    operations for batched inputs.
+    operations for batched inputs and applies chain rule for coordinate transformation.
 
     Attributes:
         coordinates (torch.Tensor): A tensor of shape [dim, num_points] representing 
                                     the coordinates over which operations are computed.
     """
-    def __init__(self, coordinates):
+    def __init__(self, coordinates, jacobians):
         """Initialize the UFL class with given coordinates.
         
         Args:
             coordinates (torch.Tensor): A tensor of shape [dim, num_points].
         """
         self.coordinates = coordinates
+        self.jacobians = jacobians
 
     def _compute_grad(self, u, coordinate):
         """Compute gradient of u with respect to the given coordinate.
@@ -29,7 +30,12 @@ class VectorCalculus:
         Returns:
             torch.Tensor: The gradient tensor.
         """
-        return grad(u, coordinate, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+        g = grad(u, coordinate, grad_outputs=torch.ones_like(u), create_graph=True)[0]
+
+        # Apply jacobian of transformation
+        mm = torch.bmm(self.jacobians[0], g.unsqueeze(-1))
+
+        return mm.squeeze(-1)
 
     def grad(self, u):
         """Compute the gradient of u with respect to the coordinates.
