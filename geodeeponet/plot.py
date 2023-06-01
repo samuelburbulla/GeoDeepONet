@@ -36,7 +36,10 @@ def plot_solution(geom, model, collocation_points, phi, num_points=5**6, writer=
         phix += u.T
 
     # Compute norm
-    u = np.linalg.norm(u, axis=0)
+    if u.shape[0] > 1:
+        u = np.linalg.norm(u, axis=0)
+    else:
+        u = u[0]
 
     # Plot
     fig = plt.figure()
@@ -55,7 +58,7 @@ def plot_solution(geom, model, collocation_points, phi, num_points=5**6, writer=
         triangles = np.array(triangles)
         x, y = phix[:, 0], phix[:, 1]
         triang = tri.Triangulation(x, y, triangles)
-        plt.tricontourf(triang, u)
+        plt.tricontourf(triang, u, levels=50, cmap='viridis')
         plt.colorbar()
 
     if geom.dim == 3:

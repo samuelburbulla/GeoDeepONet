@@ -143,4 +143,4 @@ class UnitCubeDirichletBC:
             if w == "back":
                 n[2] = 1.
         
-        return torch.as_tensor(n, dtype=torch.float32)
+        return torch.as_tensor(n)

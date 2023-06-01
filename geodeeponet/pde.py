@@ -48,7 +48,7 @@ class Poisson(PDE):
 
     """
 
-    def __init__(self, bc, source=0):
+    def __init__(self, bc, source=lambda x: torch.tensor(0.)):
         """Initializes the Poisson class.
 
         Args:
@@ -79,7 +79,7 @@ class Poisson(PDE):
 
         Args:
             u (torch.Tensor): The solution tensor.
-            points (torch.Tensor): The points in the (global) domain.
+            points (torch.Tensor): The points in the domain where loss is evaluated.
             jacobians (torch.Tensor): The Jacobians of the transformation functions.
 
         Returns:
@@ -92,7 +92,7 @@ class Poisson(PDE):
         laplace_u = vc.div(gradu)
 
         # Evaluate source term
-        q = torch.tensor(self.source(points))
+        q = self.source(points)
 
         # Compute inner loss
         inner_loss = ((- laplace_u - q)**2).mean()
@@ -103,12 +103,15 @@ class Poisson(PDE):
         boundary_loss = ((u_boundary - u_dirichlet)**2).mean()
 
         # Compute Neumann boundary loss (grad(u) * n = 0)
-        # num_points = points.shape[1]
-        # for i in range(num_points):
-        #     x = points[:, i, :][0]
-        #     if self.bc.is_neumann(x):
-        #         gradu_n = gradu[:, :, i, :] @ self.bc.normal(x)
-        #         boundary_loss += ((gradu_n)**2).mean()
+        num_points = points.shape[0]
+        for i in range(num_points):
+            x = points[i, :]
+            if self.bc.is_neumann(x):
+                # Compute global normal vector
+                n = torch.as_tensor(jacobians[0, i] @ self.bc.normal(x), dtype=torch.float32)
+                # Compute normal derivative
+                gradu_n = gradu[:, :, i, :] @ n
+                boundary_loss += ((gradu_n)**2).mean()
         
         return inner_loss, boundary_loss
 

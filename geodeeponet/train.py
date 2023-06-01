@@ -25,7 +25,7 @@ def compute_losses(model, pde, global_collocation_points, loss_points, jacobians
 
 
 def train_model(geom, model, collocation_points, phis, pde, loss_points,
-                tolerance=1e-5, steps=200, print_every=1, plot_phis=False):
+                tolerance=1e-5, steps=100, print_every=1, plot_phis=False):
     """Trains a physics-informed GeoDeepONet model.
 
     Args:
@@ -71,6 +71,7 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
         pde_loss.backward(retain_graph=True)
         return pde_loss
 
+    i = 0
     for i in range(steps):
         optimizer.step(closure)
 
@@ -90,7 +91,7 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
 
             if train_loss < tolerance and train_boundary < tolerance:
                 break
-    print("")
+    print(" - not converged!" if i+1 == steps else " - done")
 
     # Plot solutions on tensorboard
     if plot_phis:
