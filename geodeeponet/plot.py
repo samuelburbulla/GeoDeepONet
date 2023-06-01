@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.tri as tri
 
 
-def plot_solution(geom, model, collocation_points, phi, num_points=5**6, writer=None, step=0):
+def plot_solution(geom, model, collocation_points, phi, num_points=5**6, writer="show", step=0):
     """Plots the solution of a PDE on a geometric domain.
        For now, we assume a grid-like structure of the uniform points in a unit square.
 
@@ -15,13 +15,10 @@ def plot_solution(geom, model, collocation_points, phi, num_points=5**6, writer=
         collocation_points (torch.Tensor): The collocation points.
         phi (nn.Module): The parameterization function.
         num_points (int, optional): The number of points to evaluate the solution at. Defaults to 10000.
-        writer (str, optional): The Tensorboard writer or "show". Defaults to None.
+        writer (str, optional): The Tensorboard writer or "show". Defaults to "show".
         step (int, optional): The current step. Defaults to 0.
 
     """
-    if writer is None:
-        return
-    
     # Evaluate operator
     xs = geom.uniform_points(num_points=num_points)
     u = model((phi.inv(collocation_points), xs))
@@ -78,6 +75,6 @@ def plot_solution(geom, model, collocation_points, phi, num_points=5**6, writer=
         canvas.draw()
         img = np.frombuffer(canvas.tostring_rgb(), dtype=np.uint8) # type: ignore
         img = img.reshape(canvas.get_width_height()[::-1] + (3,))
-        writer.add_image('plot_solution', img, step, dataformats='HWC')
+        writer.add_image('plot_solution', img, step, dataformats='HWC') # type: ignore
 
     plt.close(fig)

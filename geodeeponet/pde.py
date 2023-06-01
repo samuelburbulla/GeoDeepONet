@@ -72,7 +72,9 @@ class Poisson(PDE):
         for i, x in enumerate(points):
             if self.bc.is_dirichlet(x):
                 self.dirichlet_indices += [i]
-                self.dirichlet_values = torch.cat((self.dirichlet_values, torch.tensor([self.bc.value(x)])))
+                self.dirichlet_values = torch.cat(
+                    (self.dirichlet_values, torch.tensor([self.bc.value(x)]))
+                )
 
     def __call__(self, u, points, jacobians):
         """Computes the loss.

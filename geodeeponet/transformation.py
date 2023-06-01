@@ -69,7 +69,7 @@ class Affine:
         if b is None:
             b = np.random.rand(dim)
 
-        self.A = torch.tensor(A, requires_grad=True)
+        self.A = torch.tensor(A.T, requires_grad=True)
         self.b = torch.tensor(b, requires_grad=True)
 
 
@@ -161,21 +161,23 @@ class PolarCoordinates:
             torch.Tensor: The global output tensor.
 
         """
+        if len(xs.shape) == 1:
+            xs = xs.unsqueeze(0)
+
+        dim = xs.shape[1]
         ys = torch.zeros_like(xs)
-        for i, x in enumerate(xs):
-            r = self.r_min + (self.r_max - self.r_min) * x[0]
-            theta = self.theta_min + (self.theta_max - self.theta_min) * x[1]
+        r = self.r_min + (self.r_max - self.r_min) * xs[:, 0]
+        theta = self.theta_min + (self.theta_max - self.theta_min) * xs[:, 1]
 
-            if len(x) == 2:
-                ys[i][0] = r * torch.cos(theta)
-                ys[i][1] = r * torch.sin(theta)
+        if dim == 2:
+            ys[:, 0] = r * torch.cos(theta)
+            ys[:, 1] = r * torch.sin(theta)
 
-            if len(x) == 3:
-                phi = self.phi_min + (self.phi_max - self.phi_min) * x[2]
-                ys[i][0] = r * torch.cos(theta) * torch.sin(phi)
-                ys[i][1] = r * torch.sin(theta) * torch.sin(phi)
-                ys[i][2] = r * torch.cos(phi)
-
+        if dim == 3:
+            phi = self.phi_min + (self.phi_max - self.phi_min) * xs[:, 2]
+            ys[:, 0] = r * torch.cos(theta) * torch.sin(phi)
+            ys[:, 1] = r * torch.sin(theta) * torch.sin(phi)
+            ys[:, 2] = r * torch.cos(phi)
         return ys
     
 

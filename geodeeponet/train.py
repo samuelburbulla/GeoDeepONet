@@ -1,6 +1,5 @@
 import torch
 import time
-import numpy as np
 from torch.utils.tensorboard.writer import SummaryWriter
 from geodeeponet.plot import plot_solution
 
@@ -24,8 +23,9 @@ def compute_losses(model, pde, global_collocation_points, loss_points, jacobians
     return loss, bc
 
 
-def train_model(geom, model, collocation_points, phis, pde, loss_points,
-                tolerance=1e-5, steps=100, print_every=1, plot_phis=False):
+def train_model(geom, model, collocation_points, phis, pde, 
+                num_inner_points=512, num_boundary_points=128,
+                tolerance=1e-5, steps=1000, print_every=1, plot_phis=False):
     """Trains a physics-informed GeoDeepONet model.
 
     Args:
@@ -34,7 +34,8 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
         collocation_points (torch.Tensor): The collocation points.
         phis (list of nn.Module): The transformation function.
         pde (PDE): The partial differential equation.
-        loss_points (torch.Tensor): The points to evaluate the loss at.
+        num_inner_points (int, optional): The number of inner points to sample. Defaults to 512.
+        num_boundary_points (int, optional): The number of boundary points to sample. Defaults to 128.
         tolerance (float, optional): The tolerance for the LBFGS optimizer. Defaults to 1e-5.
         steps (int, optional): The number of optimization steps. Defaults to 1000.
         print_every (int, optional): The frequency of printing the loss. Defaults to 1.
@@ -51,28 +52,40 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
         line_search_fn='strong_wolfe',
     )
 
-    # Get global collocation and loss points
+    # Get global collocation
     global_collocation_points = []
-    jacobians = []
     for phi in phis:
         global_collocation_points += [phi.inv(collocation_points)]
-        global_loss_points = phi.inv(loss_points)
-        jac = torch.autograd.functional.jacobian(phi, global_loss_points)
-        jacobians += [jac.sum(axis=2)] # type: ignore
-
     global_collocation_points = torch.stack(global_collocation_points)
-    jacobians = torch.stack(jacobians)
-
-    # Define closure
-    def closure():
-        optimizer.zero_grad()
-        inner_loss, boundary_loss = compute_losses(model, pde, global_collocation_points, loss_points, jacobians)
-        pde_loss = inner_loss + boundary_loss
-        pde_loss.backward(retain_graph=True)
-        return pde_loss
 
     i = 0
     for i in range(steps):
+
+        # Sample loss points
+        inner_points = geom.random_points(num_inner_points)
+        boundary_points = geom.random_boundary_points(num_boundary_points)
+        loss_points = torch.cat([inner_points, boundary_points])
+
+        # Setup boundary condition
+        pde.setup_bc(loss_points)
+
+        # Compute Jacobians
+        jacobians = []
+        for phi in phis:
+            global_loss_points = phi.inv(loss_points)
+            jac = torch.autograd.functional.jacobian(phi, global_loss_points)
+            jacobians += [jac.sum(axis=2)] # type: ignore
+        jacobians = torch.stack(jacobians)
+
+        # Define closure
+        def closure():
+            optimizer.zero_grad()
+            inner_loss, boundary_loss = compute_losses(model, pde, global_collocation_points, loss_points, jacobians)
+            pde_loss = inner_loss + boundary_loss
+            pde_loss.backward(retain_graph=True)
+            return pde_loss
+        
+        # Optimize
         optimizer.step(closure)
 
         # Print losses
@@ -97,6 +110,6 @@ def train_model(geom, model, collocation_points, phis, pde, loss_points,
     if plot_phis:
         print("Plotting...")
         for i, phi in enumerate(phis):
-            plot_solution(geom, model, collocation_points, phi, writer=writer, step=i)
+            plot_solution(geom, model, collocation_points, phi, writer=writer, step=i) # type: ignore
 
     writer.close()

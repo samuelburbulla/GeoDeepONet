@@ -19,5 +19,8 @@ def l2(geom, model, collocation_points, phi, exact_solution, num_points=10**6):
     phix = phi.inv(xs)
     u_exact = exact_solution(phix)
 
-    # Compute error integral approximation
-    return torch.linalg.norm(u - u_exact) / num_points
+    # Approximate error integral
+    intl2 = (((u - u_exact)**2).sum() / num_points)**(1/2)
+
+    # Return error
+    return intl2
