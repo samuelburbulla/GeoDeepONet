@@ -192,14 +192,13 @@ class PolarCoordinates:
 
         """
         xs = torch.zeros_like(ys)
-        for i, y in enumerate(ys):
-            r = torch.norm(y)
-            theta = torch.atan2(y[1], y[0])
+        r = torch.norm(ys, dim=1)
+        theta = torch.atan2(ys[:, 1], ys[:, 0])
+        xs[:, 0] = (r - self.r_min) / (self.r_max - self.r_min)
+        xs[:, 1] = (theta - self.theta_min) / (self.theta_max - self.theta_min)
 
-            xs[i][0] = (r - self.r_min) / (self.r_max - self.r_min)
-            xs[i][1] = (theta - self.theta_min) / (self.theta_max - self.theta_min)
+        if ys.shape[1] == 3:
+            phi = torch.arccos(ys[:, 2] / r)
+            xs[:, 2] = (phi - self.phi_min) / (self.phi_max - self.phi_min)
 
-            if len(y) == 3:
-                phi = torch.arccos(y[2] / r)
-                xs[i][2] = (phi - self.phi_min) / (self.phi_max - self.phi_min)
         return xs
