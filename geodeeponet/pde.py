@@ -19,6 +19,7 @@ class PDE(abc.ABC):
         self.neumann_indices = []
         dirichlet_values = []
         neumann_normals = []
+        neumann_values = []
 
         for i, x in enumerate(points):
             if self.bc.is_dirichlet(x):
@@ -31,11 +32,13 @@ class PDE(abc.ABC):
             if self.bc.is_neumann(x):
                 self.neumann_indices += [i]
                 neumann_normals.append(self.bc.normal(x))
+                neumann_values.append(self.bc.neumann(x))
 
         if len(dirichlet_values) > 0:
             self.dirichlet_values = torch.stack(dirichlet_values)
         if len(neumann_normals) > 0:
             self.neumann_normals = torch.stack(neumann_normals)
+            self.neumann_values = torch.stack(neumann_values)
 
 
     def has_dirichlet(self):
@@ -227,8 +230,8 @@ class Elasticity(PDE):
             # Compute the normal gradient of u
             sigmas = sigma[:, :, self.neumann_indices]
             sigmas = sigmas.transpose(-2, -3)
-            sigmau_n = torch.matmul(sigmas, phi_n)
+            sigmau_n = torch.matmul(sigmas, phi_n).squeeze(-1)
             
-            boundary_loss += ((sigmau_n)**2).mean()
+            boundary_loss += ((sigmau_n - self.neumann_values)**2).mean()
 
         return inner_loss, boundary_loss

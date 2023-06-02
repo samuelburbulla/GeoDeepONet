@@ -9,7 +9,6 @@ class TestElasticityProblem(unittest.TestCase):
     def test_pde_loss(self):
         geom = gdn.geometry.UnitCube(2)
         loss_points = geom.uniform_points(100)
-        # loss_points = torch.tensor([[.1, .1], [.1, .1], [.1, .1]], requires_grad=True)
 
         # Define exact solution with corresponding source term
         def exact(points):
@@ -27,11 +26,18 @@ class TestElasticityProblem(unittest.TestCase):
             g0 += 2 * y**2
             g1 += 4 * x * y
             return -torch.stack([g0, g1])
+        
+        def neumann(points):
+            x, y = points[..., 0], points[..., 1]
+            n0 = x**2 * y
+            n1 = 2 * x * y**2
+            sgn = (2 * y - 1)
+            return sgn * torch.stack([n0, n1])
 
         # Define boundary condition
         bc = gdn.bc.UnitCubeDirichletBC({
-            w: lambda x: exact(x) for w in ["left", "right", "top", "bottom"]
-        })
+            w: lambda x: exact(x) for w in ["left", "right"]
+        }, neumann=neumann)
 
         # Setup PDE
         pde = gdn.pde.Elasticity(bc, 2, gravity=g(loss_points))
@@ -46,8 +52,9 @@ class TestElasticityProblem(unittest.TestCase):
         inner_loss, boundary_loss = pde(u, loss_points, jacobians)
 
         print(f"Inner loss: {inner_loss:.3e}")
-        print(f"Boundary loss: {boundary_loss:.3e}")
         assert inner_loss < 1e-10
+        print(f"Boundary loss: {boundary_loss:.3e}")
+        assert boundary_loss < 1e-10
 
 
 

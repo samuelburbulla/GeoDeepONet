@@ -64,6 +64,18 @@ class BoundaryCondition(abc.ABC):
 
         """
 
+    def neumann(self, x):
+        """Returns the value of the Neumann boundary condition at a local coordinate 'x'.
+
+        Args:
+            x (torch.Tensor): The local point to evaluate the boundary condition at.
+
+        Returns:
+            torch.Tensor: The value of the Neumann boundary condition at the point 'x'.
+
+        """
+        return torch.tensor(0)
+
 
 class UnitCubeDirichletBC(BoundaryCondition):
     """Class to represent Dirichlet boundary condition for a unit cube.
@@ -79,7 +91,7 @@ class UnitCubeDirichletBC(BoundaryCondition):
 
     """
 
-    def __init__(self, value_dict={}, eps=1e-8):
+    def __init__(self, value_dict={}, eps=1e-8, neumann=None):
         """Initializes the UnitCubeDirichletBC class with a value dictionary.
 
         Args:
@@ -87,7 +99,10 @@ class UnitCubeDirichletBC(BoundaryCondition):
                 The keys should be one of "left", "right", "bottom", "top", "front", "back", and 
                 map to float or callable.
                 Defaults to {}.
-
+            neumann (callable, optional): A function that returns the value of the Neumann boundary
+                condition at a given point 'x'. Defaults to zero.
+            eps (float, optional): A small number to check if a point is on a boundary. Defaults to 1e-8.
+            
         Raises:
             AssertionError: If the keys in `value_dict` are not one of "left", "right", "bottom", "top".
 
@@ -95,6 +110,11 @@ class UnitCubeDirichletBC(BoundaryCondition):
         assert all(x in ["left", "right", "bottom", "top", "front", "back"] for x in value_dict.keys())
         self.value_dict = value_dict
         self.eps = eps
+
+        if neumann is not None:
+            self.neumann = neumann
+        else:
+            self.neumann = lambda x: torch.tensor(0)
 
     def _where(self, x):
         """Determines which boundary of the unit cube the given point 'x' belongs to.
@@ -208,3 +228,15 @@ class UnitCubeDirichletBC(BoundaryCondition):
                 n[2] = 1.
         
         return torch.as_tensor(n)
+    
+    def neumann(self, x):
+        """Returns the value of the Neumann boundary condition at a local coordinate 'x'.
+
+        Args:
+            x (torch.Tensor): The local point to evaluate the boundary condition at.
+
+        Returns:
+            torch.Tensor: The value of the Neumann boundary condition at the point 'x'.
+
+        """
+        return self.neumann(x)
