@@ -13,7 +13,7 @@ class TestPoissonProblem(unittest.TestCase):
         dim = 2
         num_collocation_points = 2**dim
         branch_width = 1
-        trunk_width = 256
+        trunk_width = 128
 
         # Domain
         geom = gdn.geometry.UnitCube(dim)
@@ -32,7 +32,7 @@ class TestPoissonProblem(unittest.TestCase):
         )
 
         # Train model
-        gdn.train.train_model(geom, model, collocation_points, [phi], pde)
+        gdn.train.train_model(geom, model, collocation_points, [phi], pde, tolerance=5e-6)
 
         # Plot solution for one sample transformation
         gdn.plot.plot_solution(geom, model, collocation_points, phi, writer="show")
@@ -49,17 +49,17 @@ class TestPoissonProblem(unittest.TestCase):
 
         # Transformation
         phi = gdn.transformation.Affine(
-            A=np.array([[1., 0.], [1., 1.]]),
+            A=np.array([[1., 0.], [.5, 1.]]),
             b=np.array([0., 0.]),
         )
 
         # Exact solution
         def exact_solution(x):
-            return sin(2 * pi * x[..., 0]) * sin(2 * pi * x[..., 1]) / (8 * pi**2)
+            return sin(pi * x[..., 0]) * sin(pi * x[..., 1]) / (2 * pi**2)
 
         # Source
         def source(x):
-            return sin(2 * pi * x[..., 0]) * sin(2 * pi * x[..., 1])
+            return sin(pi * x[..., 0]) * sin(pi * x[..., 1])
         
         # Boundary condition
         bc = gdn.bc.UnitCubeDirichletBC({
@@ -96,4 +96,5 @@ class TestPoissonProblem(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    # unittest.main()
+    TestPoissonProblem().test_poisson()

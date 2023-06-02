@@ -40,7 +40,7 @@ class TestElasticityProblem(unittest.TestCase):
         }, neumann=neumann)
 
         # Setup PDE
-        pde = gdn.pde.Elasticity(bc, 2, gravity=g(loss_points))
+        pde = gdn.pde.Elasticity(bc, 2, lamb=1, mu=0.5, rho=1, gravity=g)
         pde.setup_bc(loss_points)
 
         # Get Jacobians

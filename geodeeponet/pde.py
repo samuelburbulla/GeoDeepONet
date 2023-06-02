@@ -155,16 +155,16 @@ class Elasticity(PDE):
 
     """
 
-    def __init__(self, bc, dim, E=100, nu=0.3, rho=1, gravity=None):
+    def __init__(self, bc, dim, lamb=1, mu=1, rho=1, gravity=None):
         """Initializes the Elasticity class.
 
         Args:
             bc: The boundary conditions.
             dim (int): The dimension of the problem.
-            E (float, optional): Young's modulus E. Defaults to 200e9 (steel).
-            nu (float, optional): Poisson's ratio nu. Defaults to 0.3 (steel).
-            rho (float, optional): The density rho. Defaults to 8e3 (steel).
-            gravity (torch.Tensor): The gravity vector. Defaults to [0, 0, -9.81].
+            lamb (float, optional): Lame parameter lambda. Defaults to 1.
+            mu (float, optional): Lame parameter mu. Defaults to 1.
+            rho (float, optional): The density rho. Defaults to 1.
+            gravity (callable, optional): The gravity vector. Defaults to lambda x: [0, -9.81].
 
         """
         self.outputs = dim
@@ -172,15 +172,23 @@ class Elasticity(PDE):
         self.dim = dim
 
         # Lame parameters
-        self.lamb = 1  # E * nu / ((1 + nu) * (1 - 2 * nu))
-        self.mu = 0.5  # E / (2 * (1 + nu))
+        self.lamb = lamb  # E * nu / ((1 + nu) * (1 - 2 * nu))
+        self.mu = mu      # E / (2 * (1 + nu))
+        self.rho = rho
+        self.gravity = gravity
 
-        # if gravity is None:
-        #     gravity = torch.zeros(dim)
-        #     gravity[-1] = 1# -0.016
+        if self.gravity is None:
+            def gravity(x):
+                g = torch.zeros_like(x)
+                g[:, -1] = -9.81
+                return g
+            self.gravity = gravity
 
-        self.g = rho * gravity
 
+    def setup_bc(self, points):
+        """Sets up the gravity vector."""
+        super().setup_bc(points)
+        self.g = self.rho * self.gravity(points).T
 
     def __call__(self, u, points, jacobians):
         """Computes the loss.

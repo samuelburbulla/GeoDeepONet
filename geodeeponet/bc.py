@@ -114,7 +114,7 @@ class UnitCubeDirichletBC(BoundaryCondition):
         if neumann is not None:
             self.neumann = neumann
         else:
-            self.neumann = lambda x: torch.tensor(0)
+            self.neumann = lambda x: torch.zeros_like(x)
 
     def _where(self, x):
         """Determines which boundary of the unit cube the given point 'x' belongs to.

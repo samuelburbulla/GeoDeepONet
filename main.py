@@ -1,11 +1,12 @@
 """Physics-informed GeoDeepONet for the linear elasticity."""
 import geodeeponet as gdn
+import torch
 
 # Hyperparameters
 dim = 2
 num_collocation_points = 2**dim
 branch_width = 1
-trunk_width = 256
+trunk_width = 512
 
 # Domain
 geom = gdn.geometry.UnitCube(dim)
@@ -19,12 +20,10 @@ phi = gdn.transformation.Affine(
 )
 
 # Boundary condition
-bc = gdn.bc.UnitCubeDirichletBC({
-    w: [0]*dim for w in ["left", "right"]
-})
+bc = gdn.bc.UnitCubeDirichletBC({"left": [0.]*dim, "right": [0.1]*dim})
 
 # Define PDE
-pde = gdn.pde.Elasticity(bc, dim)
+pde = gdn.pde.Elasticity(bc, dim, gravity=lambda x: torch.zeros_like(x))
 
 # Setup DeepONet
 model = gdn.deeponet.GeoDeepONet(
