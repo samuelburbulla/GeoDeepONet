@@ -36,7 +36,8 @@ def div(u, x, jacs):
     """Compute the divergence of u.
     
     Args:
-        u (torch.Tensor): A tensor of shape [batch_size, dim, num_points].
+        u (torch.Tensor): A tensor of shape [batch_size, output_size, num_points, u_dim]
+                          or [batch_size, output_size, num_points].
         x (torch.Tensor): A tensor of shape [batch_size, num_points, dim].
         jac (torch.Tensor): A tensor of shape [batch_size, num_points, dim, dim].
     
@@ -46,7 +47,7 @@ def div(u, x, jacs):
     if len(u.shape) == 3:
         # Reshape to match gradient output
         batch_size, output_size, num_points = u.shape
-        u = u.view(batch_size, 1, num_points, output_size)
+        u = u.unsqueeze(-1).permute(0, 3, 2, 1)
 
     batch_size, output_size, num_points, u_dim = u.shape
     assert u_dim == x.shape[-1], "Dimensions mismatch for divergence computation"

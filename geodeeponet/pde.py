@@ -64,7 +64,7 @@ class PDE(abc.ABC):
 
 
 class Poisson(PDE):
-    """A class representing Poisson's equation with Dirichlet boundary conditions.
+    """A PDE class implementing Poisson's equation.
     
       - Delta u = q, in domain,
       u = uD, on Dirichlet boundary,
@@ -93,9 +93,9 @@ class Poisson(PDE):
         """Computes the loss.
 
         Args:
-            u (torch.Tensor): The solution tensor (shape: (batch_size, outputs, num_points)).
-            points (torch.Tensor): The points in the domain where loss is evaluated (shape: (num_points, dim)).
-            jacobians (torch.Tensor): The Jacobians of the transformation functions (shape: (batch_size, num_points, dim, dim)).
+            u (torch.Tensor): The solution tensor of shape [batch_size, outputs, num_points].
+            points (torch.Tensor): The points in the domain where loss is evaluated of shape [num_points, dim].
+            jacobians (torch.Tensor): The Jacobians of the transformation functions of shape [batch_size, num_points, dim, dim].
 
         Returns:
             tuple: The inner loss and boundary loss.
@@ -139,11 +139,14 @@ class Poisson(PDE):
 
 
 class Elasticity(PDE):
-    """A class implementing linear elasticity with Dirichlet boundary conditions.
+    """A PDE class implementing linear elasticity.
+
+    -div(sigma(u)) = g, in domain,
+    sigma(u) = lambda * div(u) * I + mu * (grad(u) + grad(u)^T)
+    u = uD, on Dirichlet boundary,
+    sigma(u) * n = 0, on Neumann boundary.
 
     Methods:
-        setup_bc(points):
-            Sets up the boundary condition.
         __call__(u, phi_points):
             Computes the loss.
 
@@ -155,9 +158,9 @@ class Elasticity(PDE):
         Args:
             bc: The boundary conditions.
             dim (int): The dimension of the problem.
-            E (float, optional): Young's modulus $E$. Defaults to 200e9 (steel).
-            nu (float, optional): Poisson's ratio $\nu$. Defaults to 0.3 (steel).
-            rho (float, optional): The density $\rho$. Defaults to 8e3 (steel).
+            E (float, optional): Young's modulus E. Defaults to 200e9 (steel).
+            nu (float, optional): Poisson's ratio nu. Defaults to 0.3 (steel).
+            rho (float, optional): The density rho. Defaults to 8e3 (steel).
             gravity (torch.Tensor): The gravity vector. Defaults to [0, 0, -9.81].
 
         """
@@ -166,52 +169,32 @@ class Elasticity(PDE):
         self.dim = dim
 
         # Lame parameters
-        self.lamb = 1.25  # E * nu / ((1 + nu) * (1 - 2 * nu))
-        self.mu = 1  # E / (2 * (1 + nu))
+        self.lamb = 1  # E * nu / ((1 + nu) * (1 - 2 * nu))
+        self.mu = 0.5  # E / (2 * (1 + nu))
 
-        if gravity is None:
-            gravity = torch.zeros(dim)
-            gravity[-1] = 1 #-0.016
-        self.gravity = rho * gravity
+        # if gravity is None:
+        #     gravity = torch.zeros(dim)
+        #     gravity[-1] = 1# -0.016
 
-        self.dirichlet_indices = []
-        self.dirichlet_values = torch.tensor([])
+        self.g = rho * gravity
 
-    def setup_bc(self, points):
-        """Sets up the boundary condition.
-
-        Args:
-            points (torch.Tensor): The points sampling the domain.
-
-        """
-        for i, x in enumerate(points):
-            if self.bc.is_dirichlet(x):
-                self.dirichlet_indices += [i]
-                self.dirichlet_values = torch.cat(
-                    (self.dirichlet_values, torch.tensor([self.bc.value(x)]))
-                )
-        self.dirichlet_values = self.dirichlet_values.transpose(0, 1)
 
     def __call__(self, u, points, jacobians):
         """Computes the loss.
 
         Args:
             u (torch.Tensor): The solution tensor (displacement vector) of shape [batch_size, output_size, num_points].
-            points (torch.Tensor): The points in the (global) domain of shape [batch_size, num_points, dim].
-            jacobians (torch.Tensor): The Jacobians of the transformation functions.
+            points (torch.Tensor): The points in the (global) domain of shape [num_points, dim].
+            jacobians (torch.Tensor): The Jacobians of the transformation functions of shape [batch_size, num_points, dim, dim].
             
         Returns:
             tuple: The inner loss and boundary loss.
 
         """
-        num_points = points.shape[1]
-
-        # Create gravity tensor
-        g = self.gravity.unsqueeze(-1).repeat(1, 1, num_points)
-
         # Assemble: sigma = lamb * div(u) * I
-        divu = div(u, points, jacobians)
-        divuI = (divu.view(1, num_points, 1, 1) * torch.eye(self.dim)).transpose(1, 2)
+        divu = div(u, points, jacobians).transpose(-1, -2).unsqueeze(-1)
+        divuI = divu * torch.eye(self.dim)
+        divuI = divuI.permute(0, 2, 1, 3)
         sigma = self.lamb * divuI
 
         # Assemble: sigma += mu * (grad(u) + grad(u)^T)
@@ -223,22 +206,29 @@ class Elasticity(PDE):
         divsigma = div(sigma, points, jacobians)
 
         # Compute loss
-        inner_loss = ((- divsigma - g)**2).mean()
+        inner_loss = ((- divsigma - self.g)**2).mean()
 
         # Compute Dirichlet boundary loss
-        u_boundary = u[:, :, self.dirichlet_indices]
-        u_dirichlet = self.dirichlet_values.unsqueeze(0)
-        boundary_loss = ((u_boundary - u_dirichlet)**2).mean()
+        boundary_loss = 0
+        if self.has_dirichlet():
+            u_boundary = u[:, :, self.dirichlet_indices].transpose(1, 2)
+            boundary_loss += ((u_boundary - self.dirichlet_values)**2).mean()
 
-        # Compute Neumann boundary loss (sigma * n = 0)
-        neumann_loss = 0
-        num_neumann = 0
-        for i in range(num_points):
-            x = points[:, i, :][0]
-            if self.bc.is_neumann(x):
-                sigma_n = (sigma[:, :, i, :] @ self.bc.normal(x))
-                neumann_loss += (sigma_n**2).sum()
-                num_neumann += 1
-        inner_loss += (neumann_loss / num_neumann)
+        # Compute Neumann boundary loss
+        if self.has_neumann():
+            # Compute the normals of transformed domain
+            jacs = jacobians[:, self.neumann_indices]
+            n = self.neumann_normals.unsqueeze(-1)
+            phi_n = torch.matmul(jacs, n)
+
+            # Normalize the normals
+            phi_n = torch.nn.functional.normalize(phi_n, dim=-2)
+
+            # Compute the normal gradient of u
+            sigmas = sigma[:, :, self.neumann_indices]
+            sigmas = sigmas.transpose(-2, -3)
+            sigmau_n = torch.matmul(sigmas, phi_n)
+            
+            boundary_loss += ((sigmau_n)**2).mean()
 
         return inner_loss, boundary_loss
