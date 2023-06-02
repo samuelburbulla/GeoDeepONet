@@ -25,7 +25,7 @@ def compute_losses(model, pde, global_collocation_points, loss_points, jacobians
 
 def train_model(geom, model, collocation_points, phis, pde, 
                 num_inner_points=128, num_boundary_points=128,
-                tolerance=1e-5, steps=1000, print_every=1, plot_phis=False):
+                tolerance=1e-5, steps=200, print_every=1, plot_phis=False):
     """Trains a physics-informed GeoDeepONet model.
 
     Args:

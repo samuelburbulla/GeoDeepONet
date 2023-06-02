@@ -1,7 +1,71 @@
+import abc
 import torch
-import numpy as np
 
-class UnitCubeDirichletBC:
+class BoundaryCondition(abc.ABC):
+    """Abstract base class for boundary conditions."""
+
+    @abc.abstractmethod
+    def on_boundary(self, x):
+        """Returns if a local coordinate 'x' is on a boundary.
+
+        Args:
+            x (torch.Tensor): The local point to check.
+
+        Returns:
+            bool: True if the point is on a boundary, False otherwise.
+
+        """
+    
+    @abc.abstractmethod
+    def is_dirichlet(self, x):
+        """Returns if a local coordinate 'x' is on a Dirichlet boundary.
+
+        Args:
+            x (torch.Tensor): The local point to check.
+
+        Returns:
+            bool: True if the point is on a Dirichlet boundary, False otherwise.
+
+        """
+
+    @abc.abstractmethod
+    def is_neumann(self, x):
+        """Returns if a local coordinate 'x' is on a Neumann boundary.
+
+        Args:
+            x (torch.Tensor): The local point to check.
+
+        Returns:
+            bool: True if the point is on a Neumann boundary, False otherwise.
+
+        """
+
+    @abc.abstractmethod
+    def value(self, x):
+        """Returns the value of the Dirichlet boundary condition at a local coordinate 'x'.
+
+        Args:
+            x (torch.Tensor): The local point to evaluate the boundary condition at.
+
+        Returns:
+            torch.Tensor: The value of the boundary condition at the point 'x'.
+
+        """
+
+    @abc.abstractmethod
+    def normal(self, x):
+        """Returns the local normal vector of the Neumann boundary condition at a local coordinate 'x'.
+
+        Args:
+            x (torch.Tensor): The local point to evaluate the boundary condition at.
+
+        Returns:
+            torch.Tensor: The local normal vector of the boundary condition at the point 'x'.
+
+        """
+
+
+class UnitCubeDirichletBC(BoundaryCondition):
     """Class to represent Dirichlet boundary condition for a unit cube.
 
     Attributes:

@@ -54,15 +54,29 @@ class Affine:
 
     """
 
-    def __init__(self, A=None, b=None, dim=2):
+    def __init__(self, A=None, b=None, alpha=None, dim=2):
         """Initializes the Affine class.
 
         Args:
             A (array_like, optional): The linear transformation matrix. If None, identity matrix plus a random matrix is used. Defaults to None.
             b (array_like, optional): The translation vector. If None, a random vector is generated. Defaults to None.
+            alpha (float, optional): A rotation angle in degrees. If set, A is initialized as corresponing rotation matrix. Defaults to None.
             dim (int, optional): The dimension of the input and output spaces. Defaults to 2.
 
         """
+        if alpha is not None:
+            if A is not None:
+                raise ValueError("Cannot specify both A and alpha.")
+            if dim != 2:
+                raise NotImplementedError("Rotation only implemented for 2D.")
+            
+            # Rotation matrix
+            alpha = np.pi * alpha / 180
+            A = np.array([
+                [np.cos(alpha), -np.sin(alpha)],
+                [np.sin(alpha), np.cos(alpha)]
+            ])
+
         if A is None:
             A = np.eye(dim) + np.random.rand(dim, dim)
 

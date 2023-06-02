@@ -2,18 +2,47 @@ import abc
 import torch
 import torch.autograd
 from geodeeponet.deriv import grad, div
+from geodeeponet.bc import BoundaryCondition
 
 class PDE(abc.ABC):
     """Abstract base class for partial differential equations."""
-
-    @abc.abstractmethod
+    bc: BoundaryCondition
+    
     def setup_bc(self, points):
         """Sets up the boundary condition.
 
         Args:
-            points (torch.Tensor): The points in the domain.
+            points (torch.Tensor): The points sampling the domain.
 
         """
+        self.dirichlet_indices = []
+        self.neumann_indices = []
+        dirichlet_values = []
+        neumann_normals = []
+
+        for i, x in enumerate(points):
+            if self.bc.is_dirichlet(x):
+                self.dirichlet_indices += [i]
+                dirichlet_values.append(self.bc.value(x))
+
+            if self.bc.is_neumann(x):
+                self.neumann_indices += [i]
+                neumann_normals.append(self.bc.normal(x))
+
+        self.dirichlet_values = torch.tensor(dirichlet_values)
+        if len(neumann_normals) > 0:
+            self.neumann_normals = torch.stack(neumann_normals)
+
+
+    def has_dirichlet(self):
+        """Returns if current points contain Dirichlet boundary conditions."""
+        return len(self.dirichlet_indices) > 0
+    
+
+    def has_neumann(self):
+        """Returns if current points contain Neumann boundary conditions."""
+        return len(self.neumann_indices) > 0
+
 
     @abc.abstractmethod
     def __call__(self, u, points, jacobians):
@@ -33,15 +62,11 @@ class PDE(abc.ABC):
 class Poisson(PDE):
     """A class representing Poisson's equation with Dirichlet boundary conditions.
     
-    \begin{align}
-      -\Delta u &= q, \quad \text{in } \Omega_\phi, \\
-      u &= uD, \quad \text{on } \partial \Omega_\phi,
-    \end{align}
-    where domain $\Omega_\phi = \phi(\Omega)$ is parameterised by $\phi: \Omega \to \mathbb{R}^d$.
-
+      - Delta u = q, in domain,
+      u = uD, on Dirichlet boundary,
+      grad u * n = 0, on Neumann boundary.
+    
     Methods:
-        setup_bc(points):
-            Sets up the boundary condition.
         __call__(u, phi_points):
             Computes the loss.
 
@@ -58,33 +83,15 @@ class Poisson(PDE):
         self.outputs = 1
         self.bc = bc
         self.source = source if callable(source) else lambda x: source
-        self.dirichlet_indices = []
-        self.dirichlet_values = torch.tensor([])
 
-    def setup_bc(self, points):
-        """Sets up the boundary condition.
-
-        Args:
-            points (torch.Tensor): The points sampling the domain.
-
-        """
-        self.dirichlet_indices = []
-        self.dirichlet_values = torch.tensor([])
-
-        for i, x in enumerate(points):
-            if self.bc.is_dirichlet(x):
-                self.dirichlet_indices += [i]
-                self.dirichlet_values = torch.cat(
-                    (self.dirichlet_values, torch.tensor([self.bc.value(x)]))
-                )
 
     def __call__(self, u, points, jacobians):
         """Computes the loss.
 
         Args:
-            u (torch.Tensor): The solution tensor.
-            points (torch.Tensor): The points in the domain where loss is evaluated.
-            jacobians (torch.Tensor): The Jacobians of the transformation functions.
+            u (torch.Tensor): The solution tensor (shape: (batch_size, outputs, num_points)).
+            points (torch.Tensor): The points in the domain where loss is evaluated (shape: (num_points, dim)).
+            jacobians (torch.Tensor): The Jacobians of the transformation functions (shape: (batch_size, num_points, dim, dim)).
 
         Returns:
             tuple: The inner loss and boundary loss.
@@ -100,21 +107,28 @@ class Poisson(PDE):
         # Compute inner loss
         inner_loss = ((- laplace_u - q)**2).mean()
 
-        # Compute boundary loss
-        u_boundary = u[:, :, self.dirichlet_indices]
-        u_dirichlet = self.dirichlet_values.unsqueeze(0)
-        boundary_loss = ((u_boundary - u_dirichlet)**2).mean()
+        # Compute Dirichlet boundary loss
+        boundary_loss = 0
+        if self.has_dirichlet():
+            u_boundary = u[:, :, self.dirichlet_indices]
+            boundary_loss += ((u_boundary - self.dirichlet_values)**2).mean()
 
-        # Compute Neumann boundary loss (grad(u) * n = 0)
-        # num_points = points.shape[0]
-        # for i in range(num_points):
-        #     x = points[i, :]
-        #     if self.bc.is_neumann(x):
-        #         # Compute global normal vector
-        #         n = torch.as_tensor(jacobians[0, i] @ self.bc.normal(x), dtype=torch.float32)
-        #         # Compute normal derivative
-        #         gradu_n = gradu[:, :, i, :] @ n
-        #         boundary_loss += ((gradu_n)**2).mean()
+        # Compute Neumann boundary loss
+        if self.has_neumann():
+            # Compute the normals of transformed domain
+            jacs = jacobians[:, self.neumann_indices]
+            n = self.neumann_normals.unsqueeze(-1)
+            phi_n = torch.matmul(jacs, n)
+
+            # Normalize the normals
+            phi_n = torch.nn.functional.normalize(phi_n, dim=-2)
+
+            # Compute the normal gradient of u
+            grads = gradu[:, :, self.neumann_indices]
+            grads = grads.unsqueeze(-1).transpose(-1, -2)
+            gradu_n = torch.matmul(grads, phi_n)
+            
+            boundary_loss += ((gradu_n)**2).mean()
         
         return inner_loss, boundary_loss
 
@@ -187,23 +201,22 @@ class Elasticity(PDE):
 
         """
         num_points = points.shape[1]
-        vc = VectorCalculus(points, jacobians)
 
         # Create gravity tensor
         g = self.gravity.unsqueeze(-1).repeat(1, 1, num_points)
 
         # Assemble: sigma = lamb * div(u) * I
-        divu = vc.div(u)
+        divu = div(u, points, jacobians)
         divuI = (divu.view(1, num_points, 1, 1) * torch.eye(self.dim)).transpose(1, 2)
         sigma = self.lamb * divuI
 
         # Assemble: sigma += mu * (grad(u) + grad(u)^T)
-        gradu = vc.grad(u)
+        gradu = grad(u, points, jacobians)
         graduT = torch.transpose(gradu, 1, 3)
         sigma += self.mu * (gradu + graduT)
         
         # Compute divergence of sigma
-        divsigma = vc.div(sigma)
+        divsigma = div(sigma, points, jacobians)
 
         # Compute loss
         inner_loss = ((- divsigma - g)**2).mean()
