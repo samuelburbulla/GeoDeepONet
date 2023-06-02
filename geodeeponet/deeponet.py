@@ -38,13 +38,11 @@ class BranchNetwork(torch.nn.Module):
             self.input_size,
             self.layer_width,
             bias=True,
-            dtype=torch.float64,
         )
         self.fc2 = torch.nn.Linear(
             self.layer_width,
             self.output_size,
             bias=False,
-            dtype=torch.float64,
         )
 
     def forward(self, u):
@@ -91,7 +89,6 @@ class TrunkNetwork(torch.nn.Module):
             self.input_size,
             self.output_size,
             bias=True,
-            dtype=torch.float64,
         )
 
     def forward(self, y):

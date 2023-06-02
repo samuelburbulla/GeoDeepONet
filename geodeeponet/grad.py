@@ -1,4 +1,4 @@
-"""Vector derivatives for PyTorch with coordinate transformation.
+"""PyTorch gradients with coordinate transformation.
 This module encapsulates the computation of the gradient and divergence 
 operations for batched inputs and applies chain rule for coordinate transformation.
 """
@@ -18,7 +18,7 @@ def grad(u, x, jacs):
     """
     batch_size, output_size, num_points = u.shape
     dim = x.shape[-1]
-    grad_output = torch.zeros((batch_size, output_size, num_points, dim), dtype=torch.float64)
+    grad_output = torch.zeros((batch_size, output_size, num_points, dim))
 
     def compute_grad(u, x, jacs):
         g = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]

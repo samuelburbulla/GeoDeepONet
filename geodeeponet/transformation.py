@@ -83,8 +83,8 @@ class Affine:
         if b is None:
             b = np.random.rand(dim)
 
-        self.A = torch.tensor(A.T, requires_grad=True)
-        self.b = torch.tensor(b, requires_grad=True)
+        self.A = torch.tensor(A.T, requires_grad=True, dtype=torch.float32)
+        self.b = torch.tensor(b, requires_grad=True, dtype=torch.float32)
 
 
     def inv(self, xs):

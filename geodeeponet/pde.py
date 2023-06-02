@@ -1,7 +1,7 @@
 import abc
 import torch
 import torch.autograd
-from geodeeponet.deriv import grad, div
+from geodeeponet.grad import grad, div
 from geodeeponet.bc import BoundaryCondition
 
 class PDE(abc.ABC):
@@ -23,13 +23,17 @@ class PDE(abc.ABC):
         for i, x in enumerate(points):
             if self.bc.is_dirichlet(x):
                 self.dirichlet_indices += [i]
-                dirichlet_values.append(self.bc.value(x))
+                v = self.bc.value(x)
+                if not isinstance(v, torch.Tensor):
+                    v = torch.tensor(v)
+                dirichlet_values.append(v)
 
             if self.bc.is_neumann(x):
                 self.neumann_indices += [i]
                 neumann_normals.append(self.bc.normal(x))
 
-        self.dirichlet_values = torch.tensor(dirichlet_values)
+        if len(dirichlet_values) > 0:
+            self.dirichlet_values = torch.stack(dirichlet_values)
         if len(neumann_normals) > 0:
             self.neumann_normals = torch.stack(neumann_normals)
 

@@ -35,7 +35,7 @@ class UnitCube:
             grids.append(np.linspace(0, 1, n))
         mesh = np.meshgrid(*grids, indexing='ij')
         xy = np.array(mesh).reshape(d, -1).T
-        xy = torch.tensor(xy, requires_grad=True)
+        xy = torch.tensor(xy, requires_grad=True, dtype=torch.float32)
         return xy
     
     def random_points(self, num_points):
@@ -49,7 +49,7 @@ class UnitCube:
                 generated collocation points.
 
         """
-        return torch.rand(num_points, self.dim, requires_grad=True, dtype=torch.float64)
+        return torch.rand(num_points, self.dim, requires_grad=True)
     
     def random_boundary_points(self, num_points):
         """Generate random points on the boundary of the unit cube.
