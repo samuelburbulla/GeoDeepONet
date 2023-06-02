@@ -24,7 +24,7 @@ def compute_losses(model, pde, global_collocation_points, loss_points, jacobians
 
 
 def train_model(geom, model, collocation_points, phis, pde, 
-                num_inner_points=512, num_boundary_points=128,
+                num_inner_points=128, num_boundary_points=128,
                 tolerance=1e-5, steps=1000, print_every=1, plot_phis=False):
     """Trains a physics-informed GeoDeepONet model.
 
@@ -53,10 +53,9 @@ def train_model(geom, model, collocation_points, phis, pde,
     )
 
     # Get global collocation
-    global_collocation_points = []
-    for phi in phis:
-        global_collocation_points += [phi.inv(collocation_points)]
-    global_collocation_points = torch.stack(global_collocation_points)
+    global_collocation_points = torch.stack([
+        phi.inv(collocation_points) for phi in phis
+    ])
 
     i = 0
     for i in range(steps):
@@ -70,12 +69,11 @@ def train_model(geom, model, collocation_points, phis, pde,
         pde.setup_bc(loss_points)
 
         # Compute Jacobians
-        jacobians = []
-        for phi in phis:
-            global_loss_points = phi.inv(loss_points)
-            jac = torch.autograd.functional.jacobian(phi, global_loss_points)
-            jacobians += [jac.sum(axis=2)] # type: ignore
-        jacobians = torch.stack(jacobians)
+        jacobians = torch.stack([
+            torch.autograd.functional.jacobian(phi, phi.inv(loss_points))
+              .sum(axis=2).transpose(-1, -2) # type: ignore
+            for phi in phis
+        ])
 
         # Define closure
         def closure():
@@ -104,6 +102,7 @@ def train_model(geom, model, collocation_points, phis, pde,
 
             if train_loss < tolerance and train_boundary < tolerance:
                 break
+    
     print(" - not converged!" if i+1 == steps else " - done")
 
     # Plot solutions on tensorboard

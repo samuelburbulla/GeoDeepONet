@@ -1,8 +1,7 @@
 import abc
 import torch
 import torch.autograd
-from geodeeponet.vectorcalculus import VectorCalculus
-from torch.autograd import grad
+from geodeeponet.deriv import grad, div
 
 class PDE(abc.ABC):
     """Abstract base class for partial differential equations."""
@@ -69,6 +68,9 @@ class Poisson(PDE):
             points (torch.Tensor): The points sampling the domain.
 
         """
+        self.dirichlet_indices = []
+        self.dirichlet_values = torch.tensor([])
+
         for i, x in enumerate(points):
             if self.bc.is_dirichlet(x):
                 self.dirichlet_indices += [i]
@@ -89,9 +91,8 @@ class Poisson(PDE):
 
         """
         # Compute derivatives
-        vc = VectorCalculus(points, jacobians)
-        gradu = vc.grad(u)
-        laplace_u = vc.div(gradu)
+        gradu = grad(u, points, jacobians)
+        laplace_u = div(gradu, points, jacobians)
 
         # Evaluate source term
         q = self.source(points)
@@ -105,15 +106,15 @@ class Poisson(PDE):
         boundary_loss = ((u_boundary - u_dirichlet)**2).mean()
 
         # Compute Neumann boundary loss (grad(u) * n = 0)
-        num_points = points.shape[0]
-        for i in range(num_points):
-            x = points[i, :]
-            if self.bc.is_neumann(x):
-                # Compute global normal vector
-                n = torch.as_tensor(jacobians[0, i] @ self.bc.normal(x), dtype=torch.float32)
-                # Compute normal derivative
-                gradu_n = gradu[:, :, i, :] @ n
-                boundary_loss += ((gradu_n)**2).mean()
+        # num_points = points.shape[0]
+        # for i in range(num_points):
+        #     x = points[i, :]
+        #     if self.bc.is_neumann(x):
+        #         # Compute global normal vector
+        #         n = torch.as_tensor(jacobians[0, i] @ self.bc.normal(x), dtype=torch.float32)
+        #         # Compute normal derivative
+        #         gradu_n = gradu[:, :, i, :] @ n
+        #         boundary_loss += ((gradu_n)**2).mean()
         
         return inner_loss, boundary_loss
 
