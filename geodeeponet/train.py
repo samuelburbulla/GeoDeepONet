@@ -1,6 +1,6 @@
 import torch
 import time
-from torch.utils.tensorboard.writer import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from geodeeponet.plot import plot_solution
 
 
@@ -93,7 +93,7 @@ def train_model(geom, model, collocation_points, phis, pde,
             pde_loss = inner_loss + boundary_loss
             pde_loss.backward(retain_graph=True)
             return pde_loss
-        
+
         # Optimize
         optimizer.step(closure)
 
