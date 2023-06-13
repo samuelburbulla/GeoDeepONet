@@ -132,22 +132,17 @@ class GeoDeepONet(torch.nn.Module):
         """
         super(GeoDeepONet, self).__init__()
 
-        self.branches = torch.nn.ModuleList([
-            BranchNetwork(
-                input_size=num_collocation_points * dimension,
-                layer_width=branch_width,
-                output_size=trunk_width,
-            )
-            for _ in range(outputs)
-        ])
+        self.branch = BranchNetwork(
+            input_size=num_collocation_points * dimension,
+            layer_width=branch_width,
+            output_size=trunk_width * outputs,
+        )
 
-        self.trunks = torch.nn.ModuleList([
-            TrunkNetwork(
-                input_size=dimension,
-                output_size=trunk_width,
-            )
-            for _ in range(outputs)
-        ])
+        self.trunk = TrunkNetwork(
+            input_size=dimension,
+            output_size=trunk_width * outputs,
+        )
+        self.trunk_width = trunk_width
         self.outputs = outputs
 
     def forward(self, x):
@@ -168,24 +163,24 @@ class GeoDeepONet(torch.nn.Module):
         if len(point.shape) == 2:
             point = torch.stack([point])
 
-        # Change view of params
-        param = param.view(param.shape[0], 1, param.shape[1] * param.shape[2])
+        batch_size, collocation_points, dimension = param.shape
+
+        # Flatten params
+        param = param.view(batch_size, 1, collocation_points * dimension)
 
         # Subtract mean
         mean = torch.mean(param, dim=2, keepdim=True)
         param = param - mean
 
-        # Compute outputs
-        out = torch.zeros((param.shape[0], self.outputs, point.shape[1]))
-        for i in range(self.outputs):
-            # Apply branch and trunk
-            b = self.branches[i](param)
-            t = self.trunks[i](point)
+        # Apply branch and trunk
+        b = self.branch(param)
+        t = self.trunk(point)
 
-            # Batch-wise dot product
-            dot = torch.einsum("bki,bni->bkn", b, t)
+        # Reshape
+        b = b.reshape(b.shape[0], b.shape[1], self.outputs, self.trunk_width)
+        t = t.reshape(t.shape[0], t.shape[1], self.outputs, self.trunk_width)
 
-            # Assign this output
-            out[:, i, :] = dot[:, 0, :]
+        # Batch-wise dot product
+        dot = torch.einsum("bkoi,bnoi->bkon", b, t)[:, 0, :, :]
 
-        return out
+        return dot
