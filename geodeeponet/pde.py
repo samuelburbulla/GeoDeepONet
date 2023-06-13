@@ -164,7 +164,7 @@ class Elasticity(PDE):
             lamb (float, optional): Lame parameter lambda. Defaults to 1.
             mu (float, optional): Lame parameter mu. Defaults to 1.
             rho (float, optional): The density rho. Defaults to 1.
-            gravity (callable, optional): The gravity vector. Defaults to lambda x: [0, -9.81].
+            gravity (callable, optional): The gravity vector. Defaults to lambda x: [0, -0.1].
 
         """
         self.outputs = dim
@@ -178,9 +178,9 @@ class Elasticity(PDE):
 
         if gravity is None:
             def gravity(x):
-                g = torch.zeros_like(x).T
-                g[:, -1] = -9.81
-                return g
+                g = torch.zeros_like(x)
+                g[:, -1] = -0.1
+                return g.T
             self.gravity = gravity
 
         elif not callable(gravity):

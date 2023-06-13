@@ -1,29 +1,30 @@
-"""Physics-informed GeoDeepONet for the linear elasticity."""
+"""Physics-informed GeoDeepONet for linear elasticity."""
 import geodeeponet as gdn
-import torch
+import numpy as np
 
 # Hyperparameters
 dim = 2
 num_collocation_points = 2**dim
 branch_width = 1
-trunk_width = 512
+trunk_width = 64
 
 # Domain
 geom = gdn.geometry.UnitCube(dim)
 collocation_points = geom.uniform_points(num_collocation_points)
 
 # Transformations
-import numpy as np
 phi = gdn.transformation.Affine(
     A=np.array([[1., 0.], [0., 1.]]),
     b=np.zeros(dim)
 )
 
 # Boundary condition
-bc = gdn.bc.UnitCubeDirichletBC({"left": [0.]*dim, "right": [0.1]*dim})
+bc = gdn.bc.UnitCubeDirichletBC({
+    w: lambda x: [0.]*dim for w in ["left"]
+})
 
 # Define PDE
-pde = gdn.pde.Elasticity(bc, dim, gravity=lambda x: torch.zeros_like(x))
+pde = gdn.pde.Elasticity(bc, dim)
 
 # Setup DeepONet
 model = gdn.deeponet.GeoDeepONet(
@@ -35,7 +36,7 @@ model = gdn.deeponet.GeoDeepONet(
 )
 
 # Train model
-gdn.train.train_model(geom, model, collocation_points, [phi], pde)
+gdn.train.train_model(geom, model, collocation_points, [phi], pde, tolerance=2e-5)
 
 # Plot solution
 gdn.plot.plot_solution(geom, model, collocation_points, phi, writer="show")
