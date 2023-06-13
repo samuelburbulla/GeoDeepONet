@@ -1,7 +1,6 @@
 """Test PDE loss of linear elasticity using an analytical solution."""
 import unittest
 import geodeeponet as gdn
-from torch import sin, pi
 import torch
 
 class TestElasticityProblem(unittest.TestCase):
@@ -59,5 +58,4 @@ class TestElasticityProblem(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    # unittest.main()
-    TestElasticityProblem().test_pde_loss()
+    unittest.main()
