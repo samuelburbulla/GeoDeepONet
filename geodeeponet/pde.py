@@ -175,20 +175,25 @@ class Elasticity(PDE):
         self.lamb = lamb  # E * nu / ((1 + nu) * (1 - 2 * nu))
         self.mu = mu      # E / (2 * (1 + nu))
         self.rho = rho
-        self.gravity = gravity
 
-        if self.gravity is None:
+        if gravity is None:
             def gravity(x):
-                g = torch.zeros_like(x)
+                g = torch.zeros_like(x).T
                 g[:, -1] = -9.81
                 return g
+            self.gravity = gravity
+
+        elif not callable(gravity):
+            self.gravity = lambda x: torch.tensor(gravity).repeat(x.shape[0], 1).T
+
+        else:
             self.gravity = gravity
 
 
     def setup_bc(self, points):
         """Sets up the gravity vector."""
         super().setup_bc(points)
-        self.g = self.rho * self.gravity(points).T
+        self.g = self.rho * self.gravity(points)
 
     def __call__(self, u, points, jacobians):
         """Computes the loss.
@@ -239,7 +244,6 @@ class Elasticity(PDE):
             sigmas = sigma[:, :, self.neumann_indices]
             sigmas = sigmas.transpose(-2, -3)
             sigmau_n = torch.matmul(sigmas, phi_n).squeeze(-1)
-            
             boundary_loss += ((sigmau_n - self.neumann_values)**2).mean()
 
         return inner_loss, boundary_loss
