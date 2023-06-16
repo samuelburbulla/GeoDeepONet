@@ -1,6 +1,6 @@
 import torch
 import time
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 from geodeeponet.plot import plot_solution
 
 
@@ -44,7 +44,8 @@ def compute_jacobians(phis, loss_points):
 
 def train_model(geom, model, collocation_points, phis, pde, 
                 num_inner_points=128, num_boundary_points=128,
-                tolerance=1e-6, steps=1000, print_every=1, plot_phis=False):
+                tolerance=1e-5, steps=100_000, print_every=1000,
+                sample_every=100, plot_phis=False):
     """Trains a physics-informed GeoDeepONet model.
 
     Args:
@@ -57,34 +58,37 @@ def train_model(geom, model, collocation_points, phis, pde,
         num_boundary_points (int, optional): The number of boundary points to sample. Defaults to 128.
         tolerance (float, optional): The tolerance for the LBFGS optimizer. Defaults to 1e-5.
         steps (int, optional): The number of optimization steps. Defaults to 1000.
-        print_every (int, optional): The frequency of printing the loss. Defaults to 1.
+        print_every (int, optional): The frequency of printing the loss. Defaults to 100.
+        sample_every (int, optional): The frequency of sampling new loss points. Defaults to 100.
+        plot_phis (bool, optional): Whether to plot the transformation functions. Defaults to False.
 
     """
     start_time = time.time()
     writer = SummaryWriter()
 
-    # LBFGS optimizer
-    optimizer = torch.optim.LBFGS(
-        model.parameters(),
-        line_search_fn='strong_wolfe',
-    )
+    # Optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
-    # Get global collocation
+    # Compute global collocation points
     global_collocation_points = torch.stack([
         phi.inv(collocation_points) for phi in phis
     ])
 
-    i = 0
-    for i in range(steps):
+    loss_points, jacobians = None, None
+    step = 0
+    while step < steps:
+        step += 1
 
         # Sample loss points
-        inner_points = geom.random_points(num_inner_points)
-        boundary_points = geom.random_boundary_points(num_boundary_points)
-        loss_points = torch.cat([inner_points, boundary_points])
+        if step % sample_every == 1:
+            # Sample loss points
+            inner_points = geom.random_points(num_inner_points)
+            boundary_points = geom.random_boundary_points(num_boundary_points)
+            loss_points = torch.cat([inner_points, boundary_points])
 
-        # Setup boundary condition and compute test jacobians
-        pde.setup_bc(loss_points)
-        jacobians = compute_jacobians(phis, loss_points)
+            # Setup boundary condition and compute test jacobians
+            pde.setup_bc(loss_points)
+            jacobians = compute_jacobians(phis, loss_points)
 
         # Define closure
         def closure():
@@ -98,8 +102,7 @@ def train_model(geom, model, collocation_points, phis, pde,
         optimizer.step(closure)
 
         # Print losses
-        if i % print_every == print_every-1:
-            step = i+1
+        if step % print_every == 0:
             train_loss, train_boundary = compute_losses(model, pde, global_collocation_points, loss_points, jacobians)
 
             # Sample test points
@@ -124,13 +127,13 @@ def train_model(geom, model, collocation_points, phis, pde,
             # Print to console
             steps_per_sec = step / (time.time() - start_time)
             print(f"\rStep {step}  Train: {train_loss:.3e}  BC {train_boundary:.3e}   " \
-                  f"Test: {test_loss:.3e}  BC {test_boundary:.3e} " \
+                  f"Test: {test_loss:.3e}  BC {test_boundary:.3e}   " \
                   f"({steps_per_sec:.2f} steps/sec)", end="")
 
             if test_loss < tolerance and test_boundary < tolerance:
                 break
     
-    print(" - not converged!" if i+1 == steps else " - done")
+    print(" - not converged!" if step == steps else " - done")
 
     # Plot solutions on tensorboard
     if plot_phis:

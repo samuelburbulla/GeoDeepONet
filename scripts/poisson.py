@@ -1,42 +1,34 @@
-"""Physics-informed GeoDeepONet for linear elasticity."""
+"""Physics-informed GeoDeepONet."""
 import geodeeponet as gdn
 import numpy as np
 
 # Hyperparameters
 dim = 2
 num_collocation_points = 2**dim
-branch_width = 1
-trunk_width = 64
 
-# Domain
+# Reference domain
 geom = gdn.geometry.UnitCube(dim)
 collocation_points = geom.uniform_points(num_collocation_points)
 
 # Transformations
-phi = gdn.transformation.Affine(
-    A=np.array([[1., 0.], [0., 1.]]),
-    b=np.zeros(dim)
-)
-
-# Boundary condition
-bc = gdn.bc.UnitCubeDirichletBC({
-    w: lambda x: [0.]*dim for w in ["left"]
-})
+phis = [gdn.transformation.PolarCoordinates() for _ in range(1)]
 
 # Define PDE
-pde = gdn.pde.Elasticity(bc, dim)
+bc = gdn.bc.UnitCubeZeroDirichletBC()
+pde = gdn.pde.Poisson(bc, 1)
 
 # Setup DeepONet
 model = gdn.deeponet.GeoDeepONet(
-    branch_width=branch_width,
-    trunk_width=trunk_width,
+    branch_width=1,
+    trunk_width=32,
     num_collocation_points=len(collocation_points),
     dimension=geom.dim,
     outputs=pde.outputs,
 )
 
 # Train model
-gdn.train.train_model(geom, model, collocation_points, [phi], pde, tolerance=2e-5)
+gdn.train.train_model(geom, model, collocation_points, phis, pde)
 
 # Plot solution
+phi = phis[0]
 gdn.plot.plot_solution(geom, model, collocation_points, phi, writer="show")

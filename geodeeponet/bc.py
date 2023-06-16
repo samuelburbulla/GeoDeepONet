@@ -240,3 +240,12 @@ class UnitCubeDirichletBC(BoundaryCondition):
 
         """
         return self.neumann(x)
+    
+
+class UnitCubeZeroDirichletBC(UnitCubeDirichletBC):
+    """Class to represent zero Dirichlet boundary condition for a unit cube."""
+
+    def __init__(self, dim=1):
+        super().__init__({
+            w: lambda x: [0.]*dim for w in ["left", "right", "bottom", "top", "front", "back"]
+        })

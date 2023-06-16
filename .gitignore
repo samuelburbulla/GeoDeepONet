@@ -6,3 +6,4 @@ runs
 solution.png
 *.egg-info
 build
+*.dat

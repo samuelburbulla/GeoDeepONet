@@ -2,7 +2,7 @@ import abc
 import torch
 import torch.autograd
 from geodeeponet.grad import grad, div
-from geodeeponet.bc import BoundaryCondition
+from geodeeponet.bc import BoundaryCondition, UnitCubeZeroDirichletBC
 
 class PDE(abc.ABC):
     """Abstract base class for partial differential equations."""
@@ -72,14 +72,9 @@ class Poisson(PDE):
       - Delta u = q, in domain,
       u = uD, on Dirichlet boundary,
       grad u * n = 0, on Neumann boundary.
-    
-    Methods:
-        __call__(u, phi_points):
-            Computes the loss.
-
     """
 
-    def __init__(self, bc, source=lambda x: torch.tensor(0.)):
+    def __init__(self, bc, source=0.):
         """Initializes the Poisson class.
 
         Args:
@@ -89,7 +84,7 @@ class Poisson(PDE):
         """
         self.outputs = 1
         self.bc = bc
-        self.source = source if callable(source) else lambda x: source
+        self.source = source if callable(source) else lambda _: torch.tensor(source)
 
 
     def __call__(self, u, points, jacobians):
@@ -140,7 +135,6 @@ class Poisson(PDE):
         return inner_loss, boundary_loss
 
 
-
 class Elasticity(PDE):
     """A PDE class implementing linear elasticity.
 
@@ -177,11 +171,11 @@ class Elasticity(PDE):
         self.rho = rho
 
         if gravity is None:
-            def gravity(x):
+            def grav(x):
                 g = torch.zeros_like(x)
                 g[:, -1] = -0.1
                 return g.T
-            self.gravity = gravity
+            self.gravity = grav
 
         elif not callable(gravity):
             self.gravity = lambda x: torch.tensor(gravity).repeat(x.shape[0], 1).T

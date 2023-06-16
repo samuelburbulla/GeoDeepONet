@@ -74,7 +74,7 @@ class TrunkNetwork(torch.nn.Module):
 
     """
 
-    def __init__(self, input_size, output_size):
+    def __init__(self, input_size, output_size, num_hidden=3):
         """Initializes the TrunkNetwork class.
 
         Args:
@@ -85,11 +85,21 @@ class TrunkNetwork(torch.nn.Module):
         super(TrunkNetwork, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
+        self.num_hidden = num_hidden
+
         self.fc = torch.nn.Linear(
             self.input_size,
             self.output_size,
             bias=True,
         )
+
+        self.hidden = torch.nn.ModuleList([
+            torch.nn.Linear(
+                self.output_size,
+                self.output_size,
+                bias=True,
+            ) for _ in range(num_hidden)
+        ])
 
     def forward(self, y):
         """Computes the forward pass of the trunk network.
@@ -103,6 +113,11 @@ class TrunkNetwork(torch.nn.Module):
         """
         y = self.fc(y)
         y = torch.nn.functional.tanh(y)
+
+        for i in range(self.num_hidden):
+            y = self.hidden[i](y)
+            y = torch.nn.functional.tanh(y)
+
         return y
 
 
@@ -150,6 +165,8 @@ class GeoDeepONet(torch.nn.Module):
 
         Args:
             x (tuple): A tuple containing the parameter tensor and the point tensor.
+                        params is a tensor of shape ([batch_size, ]collocation_points, dimension)
+                        points is a tensor of shape ([batch_size, ]num_points, dimension)
 
         Returns:
             torch.Tensor: The output tensor.
