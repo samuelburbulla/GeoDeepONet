@@ -21,24 +21,35 @@ class BranchNetwork(torch.nn.Module):
 
     """
 
-    def __init__(self, input_size, layer_width, output_size):
+    def __init__(self, input_size, layer_width, output_size, num_hidden=3):
         """Initializes the BranchNetwork class.
 
         Args:
             input_size (int): The size of the input layer.
             layer_width (int): The width of the hidden layer.
             output_size (int): The size of the output layer.
+            num_hidden (int): The number of hidden layers.
 
         """
         super(BranchNetwork, self).__init__()
         self.input_size = input_size
         self.layer_width = layer_width
         self.output_size = output_size
+        self.num_hidden = num_hidden
         self.fc1 = torch.nn.Linear(
             self.input_size,
             self.layer_width,
             bias=True,
         )
+
+        self.hidden = torch.nn.ModuleList([
+            torch.nn.Linear(
+                self.layer_width,
+                self.layer_width,
+                bias=True,
+            ) for _ in range(num_hidden)
+        ])
+
         self.fc2 = torch.nn.Linear(
             self.layer_width,
             self.output_size,
@@ -57,6 +68,11 @@ class BranchNetwork(torch.nn.Module):
         """
         u = self.fc1(u)
         u = torch.nn.functional.tanh(u)
+
+        for i in range(self.num_hidden):
+            y = self.hidden[i](u)
+            y = torch.nn.functional.tanh(u)
+
         u = self.fc2(u)
         return u
 
@@ -80,6 +96,7 @@ class TrunkNetwork(torch.nn.Module):
         Args:
             input_size (int): The size of the input layer.
             output_size (int): The size of the output layer.
+            num_hidden (int): The number of hidden layers.
 
         """
         super(TrunkNetwork, self).__init__()
