@@ -44,7 +44,7 @@ def compute_jacobians(phis, loss_points):
 
 def train_model(geom, model, collocation_points, phis, pde, 
                 num_inner_points=128, num_boundary_points=128,
-                tolerance=1e-5, steps=100_000, print_every=1000,
+                tolerance=1e-5, steps=1000_000, print_every=1000,
                 sample_every=100, plot_phis=False):
     """Trains a physics-informed GeoDeepONet model.
 

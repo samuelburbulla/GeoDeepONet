@@ -28,10 +28,7 @@ model = gdn.deeponet.GeoDeepONet(
 
 # Train model
 gdn.train.train_model(geom, model, collocation_points, phis, pde)
-torch.save(model.state_dict(), 'model.pt')
 
 # Plot solution
 phi = gdn.transformation.PolarCoordinates()
-inner, bnd = gdn.train.compute_losses(geom, model, collocation_points, phi, pde)
-print(f"Validation. Inner loss: {inner:.2e}, Boundary loss: {bnd:.2e}")
 gdn.plot.plot_solution(geom, model, collocation_points, phi, writer="show")
